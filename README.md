@@ -1,34 +1,161 @@
 <p align="center">
   <img src="https://i.imgur.com/vKDluJm.png" alt="qengine">
 </p>
-<p align="center" style="font-size: 20px; font-weight: bold;">
-                                         		qengine 
-</p>
 
+# 🚀 **qengine 2.0**
 
-qengine is a Header-Only, Highly Configurable, Compiler-Independent Binary Obfuscation Toolkit designed for C++ Standard 17 (or higher) Applications for Microsoft Windows,
-offering ease of use in your projects, while making your output code extremely difficult to understand, especially for classic disassemblers like IDA.
+qengine is a Header-Only, Highly Configurable, Compiler-Independent Binary Obfuscation Toolkit designed for C++20 Applications for Microsoft Windows. It offers enhanced security and ease of integration, making your binaries significantly harder to reverse-engineer, particularly against tools such as IDA.
 
-If you are interested in security testing qengine, or downloading further example usage of qengine, please refer to the Research and Development Repository which contains official template projects for these purposes:
+## 🔖 **Latest Updates (qengine2 Changelog)**
 
-[ qengine Research & Development Branch ](https://github.com/Chemiculs/qengine-researchanddevelopment)
+🔐  Encryption Overhaul
+----------------------
 
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+• Added brand‑new **polyc128** block/stream cipher (128‑bit block, 10‑round key schedule).
+a 128-bit streaming block-based algorithm w/ Notch and additional plaintext Data mutations dependent upon strength setting of the algorithm - Likely more secure than any variant of AES
 
-** URGENT UPDATE **  
+• Replaced legacy rolling‑XOR (‘polycXOR’): polcXOR now kept only for Explicit Legacy Calls and Internal State Modulation; never selected automatically.
 
-LLVM / Clang have pushed an update to their Compiler, which breaks some of qengine's inlining features, namely QSTR's compile-time string obfuscation, regardless of Compiler setting ;
+• Runtime dispatcher (`qcipher_provider::cipher`):
+      CPU Feature AES‑NI present   	→ aes128_ctr
+      else             			→ polyc128 (uses SSE2 lanes )
 
-if your output fails to produce inlining, for now Either :
+• Added Hardware-Intrinsic and Software CRC32 Implementations using my accelmem Library ; 
 
-* Downgrade LLVM / Clang Compiler Version
+• Runtime dispatcher (`qcipher_provider::digest`):
+      CPU Feature SSE4.2 present   	→ crc32_hardware_intrinsic
+      else             			→ crc32_software (uses SSE2 lanes ) OR qhash32 (Legacy Algorithm,Considered Deprecated )
 
-* Switch to MSVC or Intel Compiler 
+• YMMV with Reproduction of Test Results; The result Depends on both the Algorithm, Given Input Key + IV, and input Plaintext Data 
 
-Thanks
+• NIST STS-2.1.2 SP800-22 Rev1a Tests
+-----------------------------------------
+- Note: polycXOR in its basis element, being a rolling XOR / ADD / SUB Algorithm relying on control-flow confusion, Fails nearly all NIST STS-2.1.2 SP800-22 Rev1a tests for Actual Cryptographic Security
 
-**************************************************************
+• Given an Input Dataset of A Default Windows 11 Jpeg Logo Image File ::=
 
+- polycXOR Encryption Scored a 3 / 15 in the test-suite
+
+- polyc128_streamonly Mode: Scored a 13 / 15 in the test-suite
+
+- aes128-CTR Mode: Scored a 13 / 15 in the test-suite
+<img src="https://i.imgur.com/RCSnNdF.png" alt="qengine">
+
+• Bitfall / Avalanche Tests
+-----------------------------------------
+
+• Given an Input Dataset of A Default Windows 11 Jpeg Logo Image File ::=
+
+- polycXOR: 20.63% Bits-flipped in the test
+
+- polyc128_extreme Mode:  50.26% Bits-flipped in the test (2.5x Improvement Over polycXOR)
+
+- aes128-CTR Mode: 50.04% Bits-flipped in the test
+
+### 🛠 **Public API Enhancements**
+- Added `pdfn`: Runtime function encryption using Windows Exception Handling.
+- Added `ghostcall`: Obscures function calls and addresses.
+- Added `ghostmut`: Indirects primitive operations (math, memcpy, memset).
+- `qhook_dtc` namespace updates (`qanalyze_fn_length`).
+
+### 📂 **New Integrated Libraries**
+- **[accelmem](https://github.com/Chemiculs/accelmem)**: High-performance memory operations, encryption, CRC32 checksums.
+- **[cmut](https://github.com/Chemiculs/cmut)**: Thread-safe primitive mutation and protection.
+
+### 🔗 **New External Components**
+- **pdfn**:     Reliable && Precise Runtime Function Encryption
+- **ghostcall**: Windows VEH-based call indirection/spoofing.
+- **ghostmut**: Instruction-level spoofing and mutation.
+
+## 📚 Examples
+
+### PDFN (Encrypted Calls)
+
+#### Direct C64 Calls (no INT3, x64 ONLY)
+
+```cpp
+// Define your function
+NTSTATUS do_fn2(wchar_t* a1, wchar_t* a2) {
+    // ... implementation ...
+}
+
+// In global scope
+PD_DCALL_FUNC_INST(do_fn2);
+
+// Later in main/derived scope
+PDFN_DIRECT_CALL(NTSTATUS, do_fn2, (L"pdfn_invoke1", L"pdfn_invoke1"));
+```
+
+#### Standard PDFN (All Builds)
+
+```cpp
+// Declare and implement via VEH
+PD_FUNC(NTSTATUS, do_fn, (const char* a1, const char* a2) noexcept) {
+    return MessageBoxA(nullptr, a1, a2, 0);
+}
+
+// Then call normally:
+NTSTATUS status = do_fn("Hello", "World");
+```
+
+### Ghostmut (Masked Primitives)
+
+```cpp
+std::uint32_t x = 0xFEFEFEFE, y = 0xABABABAB;
+
+// Arithmetic mutation (e.g. XOR-assign)
+auto prod = GHOSTMUT_INSN(x, y, GINSN_XOREQU);
+
+// Primitive memory comparison
+auto res = GHOSTMUT_MEMCMP(&x, &y, sizeof(std::uint32_t));
+```
+
+### Ghostcall (Indirect Calls)
+
+```cpp
+// Indirect call via VEH trampoline
+NTSTATUS result = GCALL_INVOKE(
+    NTSTATUS,       // return type
+    do_fn,          // target function
+    GSTDCALL,       // calling convention
+    L"callmain1",  // metadata tag
+    L"callmain1"   // metadata tag
+);
+```
+
+## 📖 **Changelog Summary(Detailed)**
+
+### 🔑 **Encryption Improvements:**
+- Introduced polyc128 as primary cipher.
+- Deprecated polycXOR except for explicit legacy calls / usage.
+- Added Inherent Base Type Polymorphism using cmut
+- Updated capstone and asmjit to newest Github Release versions
+- Updated SCRAMBLE_CRITICAL_CONDITION to Provide MUCH better Output w/ Polymorphic Types(cmut)
+- Updated Function Length Resolution Algorithm to be Precise on x64 using Exception Table Records,v fallback for Legacy Available for x32
+
+### 🚨 **Public API & Feature Additions:**
+- `pdfn` - Runtime function encryption and decryption.
+- `ghostcall` - Function call masking.
+- `ghostmut` - Primitive operation masking.
+
+### 📌 **Important Notes:**
+- Optimized for **MSVC**; Intel and LLVM/Clang supported but suboptimal.
+- Requires **C++20** standard.
+
+## 🔨 **Build Instructions**
+- Preferred Compiler: **MSVC v143** or newer.
+- Alternative supported compilers:
+  - Intel
+  - LLVM/Clang
+  - (maybe) GCC (I hate GCC)
+
+## ⚠️ **Critical Compiler Notice**
+- Recommended: **MSVC Compiler** for optimal compatibility and performance.
+- LLVM/Clang: Potential issues with aggressive inlining.
+
+---
+
+🌟 **Enjoy qengine 2.0 and thank you for your support!** 🌟
 
 <details>
 <summary>What is qengine?</summary>
