@@ -14,6 +14,8 @@ qengine is a Header-Only, Highly Configurable, Compiler-Independent Binary Obfus
 • Added brand‑new **polyc128** block/stream cipher (128‑bit block, 10‑round key schedule).
 a 128-bit streaming block-based algorithm w/ Notch and additional plaintext Data mutations dependent upon strength setting of the algorithm - Likely more secure than any variant of AES
 
+<img src="https://i.imgur.com/9eEMOmw.png" alt="qengine">
+
 • Replaced legacy rolling‑XOR (‘polycXOR’): polcXOR now kept only for Explicit Legacy Calls and Internal State Modulation; never selected automatically.
 
 • Runtime dispatcher (`qcipher_provider::cipher`):
@@ -30,13 +32,13 @@ a 128-bit streaming block-based algorithm w/ Notch and additional plaintext Data
 
 • NIST STS-2.1.2 SP800-22 Rev1a Tests
 -----------------------------------------
-- Note: polycXOR in its basis element, being a rolling XOR / ADD / SUB Algorithm relying on control-flow confusion, Fails nearly all NIST STS-2.1.2 SP800-22 Rev1a tests for Actual Cryptographic Security
+- Note: XOR in its basis element, being a rolling XOR / ADD / SUB Algorithm relying on control-flow confusion, Fails nearly all NIST STS-2.1.2 SP800-22 Rev1a tests for Actual Cryptographic Security
 
 • Given an Input Dataset of A Default Windows 11 Jpeg Logo Image File ::=
 
-- polycXOR Encryption Scored a 3 / 15 in the test-suite
+- XOR Encryption Scored a 3 / 15 in the test-suite
 
-- polyc128_streamonly Mode: Scored a 13 / 15 in the test-suite
+- 128_streamonly Mode: Scored a 13 / 15 in the test-suite
 
 - aes128-CTR Mode: Scored a 13 / 15 in the test-suite
 <img src="https://i.imgur.com/RCSnNdF.png" alt="qengine">
@@ -46,9 +48,9 @@ a 128-bit streaming block-based algorithm w/ Notch and additional plaintext Data
 
 • Given an Input Dataset of A Default Windows 11 Jpeg Logo Image File ::=
 
-- polycXOR: 20.63% Bits-flipped in the test
+- XOR: 20.63% Bits-flipped in the test
 
-- polyc128_extreme Mode:  50.26% Bits-flipped in the test (2.5x Improvement Over polycXOR)
+- 128_extreme Mode:  50.26% Bits-flipped in the test (2.5x Improvement Over XOR)
 
 - aes128-CTR Mode: 50.04% Bits-flipped in the test
 
@@ -126,8 +128,8 @@ NTSTATUS result = GCALL_INVOKE(
 ## 📖 **Changelog Summary(Detailed)**
 
 ### 🔑 **Encryption Improvements:**
-- Introduced polyc128 as primary cipher.
-- Deprecated polycXOR except for explicit legacy calls / usage.
+- Introduced 128 as primary cipher.
+- Deprecated XOR except for explicit legacy calls / usage.
 - Added Inherent Base Type Polymorphism using cmut
 - Updated capstone and asmjit to newest Github Release versions
 - Updated SCRAMBLE_CRITICAL_CONDITION to Provide MUCH better Output w/ Polymorphic Types(cmut)
@@ -278,17 +280,14 @@ Each get() and set() accessor call is compelled inline, and each math operation 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 <details>
-<summary> Polymorphic Encryption Algorithm (polyc) </summary>
+<summary> Old polyc Algorithm (now polycXOR) </summary>
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-The backbone to this project has been it's aggressively-inlined polyc encryption algorithm.
+This is the old Algorithm used to Secure qengine Types. it is a relatively Basic and Weak XOR Algorithm with Added Niche's such as Rolling Addition / Subtraction, with the benefit of great Control-Flow Confusion from the Inlining,
+However it is Dated, Deprecated, and not in any way to be Considered a Cryptographically Secure Algorithm at this point in time, and it likely never was.
 
-While the algorithm has been strong and reliable, before the most recent update it really couldn't be truly labeled 'polymorphic' except in the sense that it generates its own table data and keys at runtime.
-
-The polyc algorithm has been updated to support encrypted function calls to differing encryption subroutines, encapsulating it's xor pass.
-
-polyc holds a global pointer table which is managed by the qxx_type objects - this table registers or retrieves a pointer entry every time you call the algorithm. This pointer descripts which subroutine pointer must be decrypted, called, and encrypted again.
+It is only used not for Explicit Legacy Calls, Securing low-risk Global Data for a Handful of Classes in qengine Now.
 
 Below is a diagram of how the polyc algorithm currently works, please bear with my bad MSPAINT artwork:
 
