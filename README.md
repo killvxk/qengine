@@ -2,6 +2,12 @@
   <img src="https://i.imgur.com/vKDluJm.png" alt="qengine">
 </p>
 
+# 🚀 **qengine 2.0**
+
+qengine is a Header-Only, Highly Configurable, Compiler-Independent Binary Obfuscation Toolkit designed for C++20 Applications for Microsoft Windows. It offers enhanced security and ease of integration, making your binaries significantly harder to reverse-engineer, particularly against tools such as IDA.
+
+## 🔖 **Latest Updates (qengine2 Changelog)**
+
 *** NEW MACROS FOR ENGINE STATE CONTROL :=
 ```cpp
 // MUST Compile with -maes for Clang / Enable AES-NI intrinsics for your compiler, EVEN IF your CPU doesnt have these features (qengine automatically decides algorithm / instructions based on client architecture)
@@ -59,11 +65,6 @@ GHOSTAPI_USE_HEAP_ALLOC
 #define QSET_POLYC128_MODE_EXTREME
 ```
 
-# 🚀 **qengine 2.0**
-
-qengine is a Header-Only, Highly Configurable, Compiler-Independent Binary Obfuscation Toolkit designed for C++20 Applications for Microsoft Windows. It offers enhanced security and ease of integration, making your binaries significantly harder to reverse-engineer, particularly against tools such as IDA.
-
-## 🔖 **Latest Updates (qengine2 Changelog)**
 
 🔐  Encryption Overhaul
 ----------------------
