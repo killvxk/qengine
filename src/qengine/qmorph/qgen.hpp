@@ -1,4 +1,4 @@
-#pragma region Header Guard
+﻿#pragma region Header Guard
 
 #ifndef QGEN_H
 #define QGEN_H
@@ -14,6 +14,7 @@
 
 #pragma region qengine
 
+#include "../qbase/qdef.hpp"
 #include "../qimport/qimport.hpp"
 
 #pragma endregion
@@ -68,280 +69,235 @@ namespace qengine {
 	#pragma region Opcode Descriptor(s)
 
 			enum asm_register64 {
-
-				RAX,
-				RBX,
-				RCX,
-				RDX,
-				RSI
+				RAX, RBX, RCX, RDX, RSI, RDI,
+				R8, R9, R10, R11, R12, R13, R14, R15
 			};
 
 			enum asm_register32 {
-				
-				EAX,
-				EBX,
-				ECX,
-				EDX,
-				ESI
+				EAX, EBX, ECX, EDX, ESI, EDI
 			};
 
 			enum asm_preamble {
-
-				MOV,
-				PUSH,
-				POP,
-				CALL,
-				OR,
-				XOR,
-				AND,
-				SUB,
-				INC,
-				DEC,
-				JMP
-			};
-			/* in order of PREAMBLE_TYPE, IMM / IMMEDIATE_TO_REG_OPERATION_SIZE, REG / REG_TO_REG_SIZE */
-			static std::unordered_map<asm_preamble, std::pair<char, char>> preamble_size_mapping_64{
-				{ MOV, { 7 , 3 } }, // we are using imm32 values regardless of platform to simplify this process atm
-				{ PUSH, { 5, 1 } },
-				{ POP, { 1, 1 } },
-				{ CALL, { 6, 2 } }, // 0 will be a flag for not supported operation
-				{ OR, { 0, 3 } },  // we won't use imm->reg for below insn's so value of zero
-				{ XOR, { 0, 3 } },
-				{ AND, { 0, 3 } },
-				{ SUB, { 0, 3 } },
-				{ INC, { 0, 3 } },
-				{ DEC, { 0, 3 } },
-				{ JMP, { 0, 2 } }
+				MOV, PUSH, POP, CALL,
+				OR, XOR, AND, SUB, INC, DEC, JMP,
+				ADD, SHL, ROR, BSWAP
 			};
 
 #pragma endregion
+
+			// Max Reasonable 
+			alignas(0x10) inline std::uint8_t insn_data_buffer[0x20];
+
+			// Maximum Carryover Length in case of Severe Misalignment is PAGE_SIZE - 1 , most Systems have Maximum Pagesize of 4096 bytes
+			alignas(0x10) inline std::uint8_t insn_output_buffer[0xFFF];
 
 			class asm_generator {
 
 			private:
 
-				static __inlineable const asmjit::_abi_1_10::x86::Gpq* generate_random_register64() noexcept {
+				static __inlineable asmjit::x86::Gp generate_random_register64() noexcept {
 
-#pragma region RNG Locals
+					std::default_random_engine eng(std::time(nullptr));
+					std::uniform_int_distribution<int> dist(0, 13);          // 14 regs
 
-					auto epoch_t = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+					switch (static_cast<asm_register64>(dist(eng))) {
 
-					std::default_random_engine engine_r(epoch_t);
-
-					std::uniform_int_distribution<short> distributor_o(0, 4);
-
-#pragma endregion
-
-					auto register_o = static_cast<asm_register64>(distributor_o(engine_r));
-
-					switch (register_o) {
-						case RAX: {
-							return &asmjit::x86::rax;
-							break;
-						}
-						case RBX: {
-							return &asmjit::x86::rbx;
-							break;
-						}
-						case RCX: {
-							return &asmjit::x86::rcx;
-							break;
-						}
-						case RDX: {
-							return &asmjit::x86::rdx;
-							break;
-						}
-						case RSI: {
-							return &asmjit::x86::rsi;
-							break;
-						}
-						default: {
-							return nullptr;
-						}
+						case RAX:  return asmjit::x86::rax;
+						case RBX:  return asmjit::x86::rbx;
+						case RCX:  return asmjit::x86::rcx;
+						case RDX:  return asmjit::x86::rdx;
+						case RSI:  return asmjit::x86::rsi;
+						case RDI:  return asmjit::x86::rdi;
+						case R8:   return asmjit::x86::r8;
+						case R9:   return asmjit::x86::r9;
+						case R10:  return asmjit::x86::r10;
+						case R11:  return asmjit::x86::r11;
+						case R12:  return asmjit::x86::r12;
+						case R13:  return asmjit::x86::r13;
+						case R14:  return asmjit::x86::r14;
+						case R15:  return asmjit::x86::r15;
+						default:   return asmjit::x86::rax;   // never hit
 					}
-
 				}
 
-				static __inlineable const asmjit::_abi_1_10::x86::Gpd* generate_random_register32() noexcept {
+				static inline asmjit::x86::Gp generate_random_register32() noexcept {
 
-#pragma region RNG locals
+					using namespace asmjit;
 
-					auto epoch_t = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+					static std::default_random_engine eng(
+						std::time(nullptr));
 
-					std::default_random_engine engine_r(epoch_t);
+					static std::uniform_int_distribution<int> dist(0, 4);
+					switch (dist(eng)) {
 
-					std::uniform_int_distribution<short> distributor_o(0, 4);
-
-#pragma endregion
-
-					auto register_o = static_cast<asm_register32>(distributor_o(engine_r));
-
-					switch (register_o) {
-						case EAX: {
-							return &asmjit::x86::eax;
-							break;
-						}
-						case EBX: {
-							return &asmjit::x86::ebx;
-							break;
-						}
-						case ECX: {
-							return &asmjit::x86::ecx;
-							break;
-						}
-						case EDX: {
-							return &asmjit::x86::edx;
-							break;
-						}
-						case ESI: {
-							return &asmjit::x86::esi;
-							break;
-						}
-						default: {
-							return nullptr;
-						}
+						case EAX: return x86::eax;
+						case EBX: return x86::ebx;
+						case ECX: return x86::ecx;
+						case EDX: return x86::edx;
+						default:  return x86::esi;
 					}
-
 				}
 
-				static __inlineable void* __regcall generate_insn(asm_preamble insn_t) noexcept {
+				static __compelled_inline imut std::size_t __regcall generate_insn(
+					
+					asm_preamble insn_t
+				
+				) noexcept {
 
-#pragma region Random Number Generator
+					using namespace asmjit;
 
-					auto epoch_t = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+					// RNG for immediates
+					static std::default_random_engine eng(std::time(nullptr));
+					static std::uniform_int_distribution<uint32_t> dist(0, UINT32_MAX);
 
-					std::default_random_engine engine_r(epoch_t);
+					JitRuntime rt;
+					CodeHolder code;
+					code.init(rt.environment());
 
-					std::uniform_int_distribution<uint32_t> distributor_o(0, UINT32_MAX);
+					x86::Assembler a(&code);
 
-#pragma endregion
-
-#pragma region AsmJit Objects
-
-					asmjit::JitRuntime jit_r;
-
-					asmjit::CodeHolder code_h{};
-
-					code_h.init(jit_r._environment);
-
-					asmjit::x86::Assembler assembler_o(&code_h);
-
-#pragma endregion
-
-					void* alloc_insn = nullptr;
-
-					switch (insn_t) { // could compress the preprocessor directives but this works for now
-
-						case MOV: {
-
-#ifdef _WIN64
-							assembler_o.mov(*generate_random_register64(), static_cast<uint32_t>(distributor_o(engine_r)));
-#else
-							assembler_o.mov(*generate_random_register32(), static_cast<uint32_t>(distributor_o(engine_r)));
-#endif
+						// -------------------------------------------------------------------
+						switch (insn_t) {
+						case MOV:
+	#ifdef _WIN64
+							a.mov(generate_random_register64(), generate_random_register64());
+	#else
+							a.mov(generate_random_register32(), imm(dist(eng)));
+	#endif
 							break;
-						}
 
-						case PUSH:{
-							assembler_o.push(static_cast<uint32_t>(distributor_o(engine_r)));
+						case PUSH:
+							a.push(imm(dist(eng)));
 							break;
-						}
-						case POP: {
 
-#ifdef _WIN64
-							assembler_o.pop(*generate_random_register64());
-#else
-							assembler_o.pop(*generate_random_register32());
-#endif
+						case POP:
+	#ifdef _WIN64
+							a.pop(generate_random_register64());
+	#else
+							a.pop(generate_random_register32());
+	#endif
 							break;
-						}
-						case CALL: {
 
-							assembler_o.call(static_cast<uint32_t>(distributor_o(engine_r))); // call imm64 does not exist so use imm32
-
+						case CALL:
+							a.call(imm(dist(eng)));           // wrapped in imm()
 							break;
-						}
-						case OR: {
 
-#ifdef _WIN64
-							assembler_o.or_(*generate_random_register64(), *generate_random_register64());
-#else
-							assembler_o.or_(*generate_random_register32(), *generate_random_register32());
-#endif
-
+						case OR:
+	#ifdef _WIN64
+							a.or_(generate_random_register64(), generate_random_register64());
+	#else
+							a.or_(generate_random_register32(), generate_random_register32());
+	#endif
 							break;
-						}
-						case XOR: {
 
-#ifdef _WIN64
-							assembler_o.xor_(*generate_random_register64(), *generate_random_register64());
-#else
-							assembler_o.xor_(*generate_random_register32(), *generate_random_register32());
-#endif
+						case XOR:
+	#ifdef _WIN64
+							a.xor_(generate_random_register64(), generate_random_register64());
+	#else
+							a.xor_(generate_random_register32(), generate_random_register32());
+	#endif
 							break;
-						}
-						case AND: {
 
-#ifdef _WIN64
-							assembler_o.and_(*generate_random_register64(), *generate_random_register64());
-#else
-							assembler_o.and_(*generate_random_register32(), *generate_random_register32());
-#endif
+						case AND:
+	#ifdef _WIN64
+							a.and_(generate_random_register64(), generate_random_register64());
+	#else
+							a.and_(generate_random_register32(), generate_random_register32());
+	#endif
 							break;
-						}
-						case SUB: {
 
-#ifdef _WIN64
-							assembler_o.sub(*generate_random_register64(), *generate_random_register64());
-#else
-							assembler_o.sub(*generate_random_register32(), *generate_random_register32());
-#endif
+						case SUB:
+	#ifdef _WIN64
+							a.sub(generate_random_register64(), generate_random_register64());
+	#else
+							a.sub(generate_random_register32(), generate_random_register32());
+	#endif
 							break;
-						}
-						case JMP: {
 
-#ifdef _WIN64
-							assembler_o.jmp(*generate_random_register64());
-#else
-							assembler_o.jmp(*generate_random_register32());
-#endif
+						case JMP:                             // register‑indirect jmp
+	#ifdef _WIN64
+							a.jmp(generate_random_register64());
+	#else
+							a.jmp(generate_random_register32());
+	#endif
 							break;
-						}
+
+						case ADD:
+	#ifdef _WIN64
+							a.add(generate_random_register64(), generate_random_register64());
+	#else
+							a.add(generate_random_register32(), generate_random_register32());
+	#endif
+							break;
+
+						case SHL:
+	#ifdef _WIN64
+							a.shl(generate_random_register64(), 1);
+	#else
+							a.shl(generate_random_register32(), 1);
+	#endif
+							break;
+
+						case ROR:
+	#ifdef _WIN64
+							a.ror(generate_random_register64(), 1);
+	#else
+							a.ror(generate_random_register32(), 1);
+	#endif
+							break;
+
+						case BSWAP:
+	#ifdef _WIN64
+							a.bswap(generate_random_register64());
+	#else
+							a.bswap(generate_random_register32());
+	#endif
+							break;
+
+						case INC:
+
+	#ifdef _WIN64
+							a.inc(generate_random_register64());
+	#else
+							a.inc(generate_random_register32());
+	#endif
+						case DEC:
+
+	#ifdef _WIN64
+							a.dec(generate_random_register64());
+	#else
+							a.dec(generate_random_register32());
+	#endif
+
+						default: break;
 					}
 
-					asmjit::Error err;
+					// -------------------------------------------------------------------
+					void* fn = nullptr;
 
-					if (err = jit_r.add(&alloc_insn, &code_h)) 
-						return nullptr;
+					if (rt.add(&fn, &code) != asmjit::kErrorOk)
+						return NULL;
 
-					auto* alloc_r = malloc(code_h.codeSize());
+					accelmem::a_memcpy(insn_data_buffer, fn, code.codeSize());
 
-					memcpy(alloc_r, alloc_insn, code_h.codeSize()); // asmjit compiled code lifetime expires at end of scope, so use a ghetto heap allocation work-around
-
-					return alloc_r;
+					return code.codeSize();
 				}
 
 			public:
 
-				static __inlineable void* __regcall generate_assembly(uint32_t length) noexcept {
+				static __inlineable imut std::size_t __regcall generate_assembly(uint32_t length) noexcept {
 
-					if (!length)
-						return nullptr;
+					// Ensure Length <= Output Buffer Size ;; Sometimes in DEBUG Builds, the Interrupt Region Lengths Return as Longer than they Should be Able to
+					if (!length || length > sizeof(insn_output_buffer))
+						return 0;
 
 #pragma region RNG Locals
 
-					auto epoch_t = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+					std::default_random_engine engine_r(std::time(nullptr));
 
-					std::default_random_engine engine_r(epoch_t);
-
-					std::uniform_int_distribution<short> distributor_o(0, 9);
+					std::uniform_int_distribution<short> distributor_o(0, 14);
 
 #pragma endregion
-
-					void* shellcode_r;
-
-					if (!(shellcode_r = malloc(length)))
-						return nullptr;
 
 					intptr_t last_insn_index = -1;
 
@@ -358,66 +314,50 @@ namespace qengine {
 						auto word_r = distributor_o(engine_r);
 
 						if (remaining >= 7) {
-
-							if (word_r >= 7)
-								insn = MOV;
-							else if (word_r >= 3)
-								insn = PUSH;
-							else if (word_r >= 0)
-								insn = CALL;
+							if (word_r >= 10)			insn = MOV;
+							else if (word_r >= 7)       insn = PUSH;
+							else                        insn = CALL;
 						}
 						else if (remaining >= 3) {
-
-							if (word_r >= 6)
-								insn = POP;
-							else if (word_r == 5) // can't be bothered to make this a switch
-								insn = XOR;
-							else if (word_r == 4)
-								insn = AND;
-							else if (word_r == 3)
-								insn = SUB;
-							else if (word_r == 2)
-								insn = INC;
-							else if (word_r == 1)
-								insn = DEC;
-							else if (!word_r)
-								insn = JMP;
+							if (word_r >= 14)			insn = POP;
+							else if (word_r == 13)      insn = XOR;
+							else if (word_r == 12)      insn = AND;
+							else if (word_r == 11)      insn = SUB;
+							else if (word_r == 10)      insn = INC;
+							else if (word_r == 9)       insn = DEC;
+							else if (word_r == 8)       insn = JMP;
+							else if (word_r == 7)       insn = OR;
+							else if (word_r == 6)       insn = ADD;
+							else if (word_r == 5)       insn = SHL;
+							else if (word_r == 4)       insn = ROR;
+							else                        insn = BSWAP;  // 3,2,1,0 fall here
 						}
 						else { // Fill remaining padding with NOP instructions
-							
-							void* alloc_nop;
 
-							if (!(alloc_nop = malloc(remaining)))
-								throw std::bad_alloc();
+							// Safe Enough, yet Approximate Size for Amo0unt of NOP insns we would need Anyways
+							alignas(0x10) static imut imutexpr std::uint8_t alloc_nop[0x3]{ 0x90u, 0x90u, 0x90u };
 
-							memset(alloc_nop, static_cast<std::uint8_t>(0x90), remaining);
-
-							memcpy(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(shellcode_r) + bytes_written), alloc_nop, remaining);
-
-							free(alloc_nop);
+							accelmem::a_memcpy(insn_output_buffer + bytes_written, alloc_nop, remaining);
 
 							goto do_ret; // this may throw compile-time errors with C++ 20 bcuz gotos r scary
 
 							break;
 						}
 
-						insn_size_data = preamble_size_mapping_64.at(insn);
+						imut std::size_t alloc_insn_sz = generate_insn(insn);
 
-						auto* alloc_insn = generate_insn(insn);
+						accelmem::a_memcpy(insn_output_buffer + bytes_written, insn_data_buffer, alloc_insn_sz);
 
-						memcpy(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(shellcode_r) + bytes_written), alloc_insn, insn_size_data.first);
-
-						free(alloc_insn);
-
-						bytes_written += insn_size_data.first;
+						bytes_written += alloc_insn_sz;
 
 					} while (bytes_written < length);
 
 				do_ret:
 
-					return shellcode_r;
-				}
+					SECURE_ZERO_MEMORY(insn_data_buffer, sizeof(insn_data_buffer));
 
+					return bytes_written;
+				}
 			};
 
 #pragma region Namespacing

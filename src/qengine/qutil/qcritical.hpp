@@ -8,10 +8,10 @@
 #pragma region Imports
 
 #include <tuple>
+#include <concepts>
 #include <type_traits>
 
 #include "../qbase/qdef.hpp"
-#include "../engine/polyhashtypes/qtype_enchash.hpp"
 
 #pragma endregion
 
@@ -26,6 +26,7 @@ namespace qengine {
 #pragma region Conditional Descriptor
 
 		enum condition_t {
+
 			GREATERTHAN,
 			GREATERTHANOREQUALTO,
 			LESSTHAN,
@@ -38,195 +39,230 @@ namespace qengine {
 
 #pragma region Templatized Comparison Scramblers
 
-		/* scrambled comparison operation */
-		template<typename T, typename T2>
-		static __compelled_inline imut bool __regcall compare_memory(T word1, T2 word2) nex {
+		template<typename T>
+		struct is_cmut : std::false_type {};
 
-			bool same = true;
+		template<typename T>
+		struct is_cmut<cmut<T>> : std::true_type {};
 
+		// Helper variable template for convenience
+		template<typename T>
+		inline constexpr bool is_cmut_v = is_cmut<T>::value;
+
+#define QCUMBERSOME_COMPARE_F32_MEMORY(_FLOAT1_, _FLOAT2_) qengine::qcritical::cumbersome_compare_integral_memory(std::bit_cast<std::uint32_t>((float)_FLOAT1_), std::bit_cast<std::uint32_t>((float)_FLOAT2_))
+#define QCUMBERSOME_COMPARE_F64_MEMORY(_FLOAT1_, _FLOAT2_) qengine::qcritical::cumbersome_compare_integral_memory(std::bit_cast<std::uint64_t>((double)_FLOAT1_), std::bit_cast<std::uint64_t>((double)_FLOAT2_))
+
+		/* Scrambled Comparison Operation */
+		template<std::integral T, std::integral T2>
+		static __compelled_inline imut bool __regcall cumbersome_compare_integral_memory(T word1, T2 word2) nex {
+
+			cmut<bool> same = cmut<bool>(true).get();
+			
 			if (sizeof(decltype(word1)) != sizeof(decltype(word2))) {
-				/* align bits of smaller word type to the larger one */
-				decltype(sizeof(decltype(word1)) > sizeof(decltype(word2)) ? word1 : word2) word_c = (sizeof(decltype(word1)) > sizeof(decltype(word2)) ? static_cast<decltype(word_c)>(word2) : static_cast<decltype(word_c)>(word1));
+				/* Align Bits of Smaller word type to the larger one */
+				using c_type = std::conditional_t<(sizeof(T) > sizeof(T2)), T, T2>;
+
+				c_type word_c = (sizeof(decltype(word1)) > sizeof(decltype(word2)) ? static_cast<decltype(word_c)>(word2) : static_cast<decltype(word_c)>(word1));
 
 				if (sizeof(decltype(word1)) > sizeof(decltype(word2)))
-					for (auto i = 0; i < sizeof(decltype(word1)); ++i)
-						if (same)
-							same = qtype_enchash::qeh_uint8(reinterpret_cast<std::uint8_t*>(&word1)[i]) == qtype_enchash::qeh_uint8(reinterpret_cast<std::uint8_t*>(&word_c)[i]);
+					for (std::size_t i = 0; i < sizeof(decltype(word1)); ++i)
+						if (same.get())
+							same.set(cmut<std::uint8_t>(((word1 >> (i * 8)) & 0xFF)).get() == (cmut<std::uint8_t>(((word_c >> (i * 8)) & 0xFF)).get()));
 						else
 							continue;
 				else
-					for (auto i = 0; i < sizeof(decltype(word2)); ++i)
-						if (same)
-							same = qtype_enchash::qeh_uint8((reinterpret_cast<std::uint8_t*>(&word2)[i]) == qtype_enchash::qeh_uint8(reinterpret_cast<std::uint8_t*>(&word_c)[i]));
+					for (std::size_t i = 0; i < sizeof(decltype(word2)); ++i)
+						if (same.get())
+							same.set((cmut<std::uint8_t>(((word2 >> (i * 8)) & 0xFF)).get() == cmut<std::uint8_t>(((word_c >> (i * 8)) & 0xFF)).get()));
 						else
 							continue;
 			}
 			else {
-				for (auto i = 0; i < sizeof(decltype(word1)); ++i)
-					if (same)
-						same = qtype_enchash::qeh_uint8((reinterpret_cast<std::uint8_t*>(&word1)[i]) == qtype_enchash::qeh_uint8(reinterpret_cast<std::uint8_t*>(&word2)[i]));
+				for (std::size_t i = 0; i < sizeof(decltype(word1)); ++i)
+					if (same.get())
+						same.set((cmut<std::uint8_t>(((word1 >> (i * 8)) & 0xFF)).get() == cmut<std::uint8_t>(((word2 >> (i * 8)) & 0xFF)).get()));
 					else
 						continue;
 			}
 
-			return std::move(same);
-		}
-
-		static __compelled_inline imut bool __regcall fast_compare_string(imut std::string string1, imut std::string string2) nex {
-
-			bool same = true;
-
-			const char* ptr1;
-			const char* ptr2;
-
-			if (string1.length() != string2.length()) {
-				same = false;
-				goto ret;
-			}
-
-			ptr1 = string1.c_str();
-			ptr2 = string2.c_str();
-
-			for (auto i = 0; i < string1.length(); ++i) {
-
-				if (static_cast<std::uint8_t>(ptr1[i]) != static_cast<std::uint8_t>(ptr2[i])) {
-					same = false;
-					goto ret;
-				}
-			}
-
-		ret:
-
-			return same;
-		}
-
-		static __compelled_inline imut bool __regcall fast_compare_wstring(imut std::wstring string1, imut std::wstring string2) nex {
-
-			bool same = true;
-
-			PWORD ptr1;
-			PWORD ptr2;
-
-			PWORD ptr_end;
-
-			if (string1.length() != string2.length()) {
-				same = false;
-				goto ret;
-			}
-
-			ptr1 = reinterpret_cast<PWORD>(const_cast<wchar_t*>(string1.c_str()));
-			ptr2 = reinterpret_cast<PWORD>(const_cast<wchar_t*>(string2.c_str()));
-
-			ptr_end = reinterpret_cast<PWORD>(const_cast<wchar_t*>(string1.c_str()) + (string1.length() * sizeof(wchar_t)));
-
-			while (ptr1 < ptr_end) {
-
-				if (*ptr1 != *ptr2) {
-					same = false;
-					goto ret;
-				}
-
-				++ptr1, ++ptr2;
-			}
-
-
-		ret:
-
-			return std::move(same);
+			return same.get();
 		}
 
 		template<typename... args, typename... args2, typename T, typename T2>
 		__inlineable void __regcall SCRAMBLE_CRITICAL_CONDITION(
 
 			void(*callback)(args...), 
+
 			void(*callback_two)(args2...),
-			imut std::tuple<args...> args_one,
-			imut std::tuple<args2...> args_two,
-			T condition_one,
-			T2 condition_two,
-			condition_t condition = EQUALTO
+
+			imut std::tuple<args...>	args_one,
+
+			imut std::tuple<args2...>	args_two,
+
+			T							condition_one,
+
+			T2							condition_two,
+
+			noregister condition_t		condition = EQUALTO
 		) {
 
-			bool evaluation = false;
+			cmut<bool> evaluation = cmut<bool>(false).get();
 
-			switch (condition) {
+			if constexpr (!std::is_same_v<T, std::string> && !std::is_same_v<T2, std::string> && !std::is_same_v<T, std::wstring> && !std::is_same_v<T2, std::wstring>) {
 
-				case condition_t::EQUALTO: {
+				if constexpr(std::is_integral_v<T> && std::is_integral_v<T2>) {
 
-					if (std::is_same_v<T, std::string> && std::is_same_v<T2, std::string>)
-						evaluation = fast_compare_string(*reinterpret_cast<std::string*>(&condition_one), *reinterpret_cast<std::string*>(&condition_two));
+					switch (condition) {
 
-					else if (std::is_same_v<T, std::wstring> && std::is_same_v<T2, std::wstring>)
-						evaluation = fast_compare_wstring(*reinterpret_cast<std::wstring*>(&condition_one), *reinterpret_cast<std::wstring*>(&condition_two));
+						case condition_t::EQUALTO: {
 
-					else
-						evaluation = compare_memory(condition_one, condition_two); /* arguments are raw / integral */
+							evaluation = cumbersome_compare_integral_memory(condition_one, condition_two);
+							break;
+						}
+						case condition_t::GREATERTHAN: {
 
-					break;
-				}
-				case condition_t::GREATERTHAN: {
+							evaluation = cmut<T>(condition_one).get() > cmut<T2>(condition_two).get();
+							break;
+						}
+						case condition_t::GREATERTHANOREQUALTO: {
 
-					evaluation = condition_one > condition_two;
-					break;
-				}
-				case condition_t::GREATERTHANOREQUALTO: {
+							if constexpr ((std::is_signed<T>::value && !std::is_signed<T2>::value) || (std::is_signed<T2>::value && !std::is_signed<T>::value)) {
 
-					if (std::is_signed<T>::value && !std::is_signed<T2>::value) { // special condition here as a signed int can appear the same as an un signed int for example in memory but hold different values
+								evaluation = cmut<T>(condition_one).get() >= cmut<T2>(condition_two).get();
+							}
+							else {
 
-						evaluation = condition_one >= condition_two;
+								evaluation = cumbersome_compare_integral_memory(condition_one, condition_two); // inlined scrambling
+
+								if (!evaluation) // condition one failed, they are not equal. check if second part of condition is true
+									evaluation = condition_one > condition_two;
+							}
+							break;
+						}
+
+						case condition_t::LESSTHAN: {
+
+							evaluation = cmut<T>(condition_one).get() < cmut<T2>(condition_two).get();
+							break;
+						}
+						case condition_t::LESSTHANOREQUALTO: {
+
+							if constexpr (std::is_signed<T>::value && !std::is_signed<T2>::value) { // special condition here as a signed int can appear the same as an un signed int for example in memory but hold different values
+
+								evaluation = cmut<T>(condition_one).get() <= cmut<T2>(condition_two).get();
+							}
+							else {
+
+								evaluation = cumbersome_compare_integral_memory(condition_one, condition_two); // Ensure some Form of Difference Exists (&& CF-Confusion from Inlining)
+
+								if (!evaluation) // Condition Check one Failed, they are not Equal. Check if Second part of Condition is true
+									evaluation = cmut<T>(condition_one).get() < cmut<T2>(condition_two).get();
+							}
+							break;
+						}
+						case condition_t::NOTEQUALTO: {
+
+							evaluation = cumbersome_compare_integral_memory(condition_one, condition_two) ? false : true; /* arguments are raw / integral */
+							break;
+						}
+						default: {
+							break;
+						}
 					}
-					else {
+				}
+				else {
 
-						evaluation = compare_memory(condition_one, condition_two); // inlined scrambling
+					switch (condition) {
 
-						if (!evaluation) // condition one failed, they are not equal. check if second part of condition is true
-							evaluation = condition_one > condition_two;
+						case condition_t::EQUALTO: {
+
+							if		constexpr(std::is_same_v<T, float> && std::is_same_v<T2, float>)
+								evaluation = QCUMBERSOME_COMPARE_F32_MEMORY(condition_one, condition_two);
+							else
+								evaluation = QCUMBERSOME_COMPARE_F64_MEMORY(condition_one, condition_two);
+							break;
+						}
+						case condition_t::GREATERTHAN: {
+
+							evaluation = cmut<T>(condition_one).get() > cmut<T2>(condition_two).get();
+							break;
+						}
+						case condition_t::GREATERTHANOREQUALTO: {
+
+							if		constexpr ((std::is_signed<T>::value && !std::is_signed<T2>::value) || (std::is_signed<T2>::value && !std::is_signed<T>::value)) {
+
+								evaluation = cmut<T>(condition_one).get() >= cmut<T2>(condition_two).get();
+							}
+							else {
+
+								if	constexpr(std::is_same_v<T, float> && std::is_same_v<T2, float>)
+									evaluation = QCUMBERSOME_COMPARE_F32_MEMORY(condition_one, condition_two);
+								else
+									evaluation = QCUMBERSOME_COMPARE_F64_MEMORY(condition_one, condition_two);
+
+								if (!evaluation) // condition one failed, they are not equal. check if second part of condition is true
+									evaluation = condition_one > condition_two;
+							}
+							break;
+						}
+
+						case condition_t::LESSTHAN: {
+
+							evaluation = cmut<T>(condition_one).get() < cmut<T2>(condition_two).get();
+							break;
+						}
+						case condition_t::LESSTHANOREQUALTO: {
+
+							if (std::is_signed<T>::value && !std::is_signed<T2>::value) { // special condition here as a signed int can appear the same as an un signed int for example in memory but hold different values
+
+								evaluation = cmut<T>(condition_one).get() <= cmut<T2>(condition_two).get();
+							}
+							else {
+
+								if	constexpr(std::is_same_v<T, float> && std::is_same_v<T2, float>)
+									evaluation = QCUMBERSOME_COMPARE_F32_MEMORY(condition_one, condition_two);
+								else
+									evaluation = QCUMBERSOME_COMPARE_F64_MEMORY(condition_one, condition_two);
+
+								if (!evaluation) // Condition Check one Failed, they are not Equal. Check if Second part of Condition is true
+									evaluation = cmut<T>(condition_one).get() < cmut<T2>(condition_two).get();
+							}
+							break;
+						}
+						case condition_t::NOTEQUALTO: {
+
+							if	constexpr(std::is_same_v<T, float> && std::is_same_v<T2, float>)
+								evaluation = QCUMBERSOME_COMPARE_F32_MEMORY(condition_one, condition_two);
+							else
+								evaluation = QCUMBERSOME_COMPARE_F64_MEMORY(condition_one, condition_two);
+							break;
+						}
+						default: {
+							break;
+						}
 					}
-
-					break;
 				}
+			}
+			else {
 
-				case condition_t::LESSTHAN: {
+				if (condition == condition_t::EQUALTO) {
 
-					evaluation = condition_one < condition_two;
-					break;
+					if		constexpr (std::is_same_v<T, std::string> && std::is_same_v<T2, std::string>)
+						evaluation = accelmem::a_memcmp(static_cast<std::string>(condition_one).data(), static_cast<std::string>(condition_two).data(), static_cast<std::string>(condition_one).size()) ? false : true;
+					else if constexpr (std::is_same_v<T, std::wstring> && std::is_same_v<T2, std::wstring>)
+						evaluation = accelmem::a_memcmp(static_cast<std::wstring>(condition_one).data(), static_cast<std::wstring>(condition_two).data(), static_cast<std::wstring>(condition_one).size() * sizeof(wchar_t)) ? false : true;
 				}
-				case condition_t::LESSTHANOREQUALTO: {
+				else if (condition == condition_t::NOTEQUALTO) {
 
-					if (std::is_signed<T>::value && !std::is_signed<T2>::value) { // special condition here as a signed int can appear the same as an un signed int for example in memory but hold different values
-
-						evaluation = condition_one >= condition_two;
-					}
-					else {
-
-						evaluation = compare_memory(condition_one, condition_two); // inlined scrambling
-
-						if (!evaluation) // condition one failed, they are not equal. check if second part of condition is true
-							evaluation = condition_one < condition_two;
-					}
-					break;
-				}
-				case condition_t::NOTEQUALTO: {
-
-					if (std::is_same_v<T, std::string> && std::is_same_v<T2, std::string>)
-						evaluation = fast_compare_string(*reinterpret_cast<std::string*>(&condition_one), *reinterpret_cast<std::string*>(&condition_two)) ? false : true;
-
-					else if (std::is_same_v<T, std::wstring> && std::is_same_v<T2, std::wstring>)
-						evaluation = fast_compare_wstring(*reinterpret_cast<std::wstring*>(&condition_one), *reinterpret_cast<std::wstring*>(&condition_two)) ? false : true;
-
-					else
-						evaluation = compare_memory(condition_one, condition_two) ? false : true; /* arguments are raw / integral */
-
-					break;
-				}
-				default: {
-					break;
+					if		constexpr (std::is_same_v<T, std::string> && std::is_same_v<T2, std::string>)
+						evaluation = accelmem::a_memcmp(static_cast<std::string>(condition_one).data(), static_cast<std::string>(condition_two).data(), static_cast<std::string>(condition_one).size()) ? true : false;
+					else if constexpr (std::is_same_v<T, std::wstring> && std::is_same_v<T2, std::wstring>)
+						evaluation = accelmem::a_memcmp(static_cast<std::wstring>(condition_one).data(), static_cast<std::wstring>(condition_two).data(), static_cast<std::wstring>(condition_one).size() * sizeof(wchar_t)) ? true : false;
 				}
 			}
 
-			if (compare_memory(std::move(evaluation), true))
+			if (cumbersome_compare_integral_memory(evaluation.get(), true))
 				std::apply(callback, args_one);
-
 			else
 				std::apply(callback_two, args_two);
 		}

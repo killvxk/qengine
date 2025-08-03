@@ -9,6 +9,8 @@
 
 #pragma region Operating System
 
+#define NOMINMAX
+
 #include <windows.h>
 
 #pragma endregion
@@ -22,43 +24,9 @@
 
 #pragma region qengine
 
-#include "../qbase/qdef.hpp"
+#include "../extern/ghostmut/gmutveh.hxx"
 
 #pragma endregion
-
-#pragma region Capstone
-
-#include "../extern/capstone/include/capstone/capstone.h"
-
-#pragma endregion
-
-#pragma endregion
-
-#pragma region Preprocessor
-
-#ifdef _WIN64
-
-#pragma comment(lib, "capstone64.lib")
-
-#elif defined(_WIN32)
-
-#pragma comment(lib, "capstone32.lib")
-
-#endif
-
-#pragma endregion
-
-#pragma region Preprocessor / imutants
-
-#ifdef _WIN64
-
-#define qcs_mode CS_MODE_64
-
-#else
-
-#define qcs_mode CS_MODE_32
-
-#endif
 
 #pragma endregion
 
@@ -77,19 +45,22 @@ namespace qengine {
 			std::vector<std::uint8_t> hook_data;
 		};
 
-		static MODULEINFO qmodule_information {};
-		static bool is_qmodule_information_init = false;
+		inline MODULEINFO qmodule_information {};
+
+		inline bool is_qmodule_information_init = false;
 
 		class qhook_dtc_util {
 			
 			public:
 
-			// This function is currently only a POC, and while it will work for less complex inline hooks, the lacking of recursion will prevent this from (properly / fully) detecting extensive / variable length hooks
 
+			/* TODO: Remove Heap / Operator New* Allocation for Return T */
 			static __symbolic qhook_detection_t* __regcall analyze_fn_hook_presence(
 
 				imut c_void fn_address,
+
 				imut std::size_t fn_length
+
 			) noexcept { // return nullptr if no hook detected
 
 				if (!fn_address || !fn_length )
@@ -171,7 +142,6 @@ namespace qengine {
 
 								// You need to get context() and watch rip / eip in feature to track the hook and dump the malicious code
 								// It doesn't look like i properly checked for the possibility of a push imm32 instruction for 32-bit applications
-
 								else if (instructions[x].id == X86_INS_POP) { // check if top of stack popped into our register
 
 									if (instructions[x].detail->x86.operands[0].type == X86_OP_REG && (instructions[x].detail->x86.operands[0].reg == instructions[i].detail->x86.operands[0].reg) ) { // pop value off stack into same register, scan for last push
@@ -256,69 +226,15 @@ namespace qengine {
 				return nullptr;
 			}
 
-			static __symbolic std::size_t __regcall analyze_fn_length(imut c_void fn_address) noexcept {
+			/*
+				For x64 Builds -> Your Function must Qualify as Non-Leaf, if it does not, use one of the following Macros within the Function Body:  FORCE_PDFN  OR FORCE_NLEAF()
+			*/
+			static __symbolic std::size_t __regcall qanalyze_fn_length(imut c_void fn_address) noexcept {
 				
 				if (!fn_address)
 					return NULL;
 
-				std::size_t function_size = static_cast<size_t>(0x0);
-
-				LPCBYTE address_iterator = reinterpret_cast<LPCBYTE>(fn_address);
-
-				csh handle;
-
-				if( (cs_open(CS_ARCH_X86, qcs_mode, &handle) != CS_ERR_OK) || !handle )
-					return NULL;
-
-				cs_insn* instructions = nullptr;
-
-#pragma region Microsoft Thingy pls fix
-
-#ifndef LPCWORD
-
-#define LPCWORD imut WORD*
-
-#endif
-
-#pragma endregion
-
-				while (*reinterpret_cast<LPCWORD>(address_iterator) != static_cast<WORD>(0xCCCC)) {
-
-					auto disasm_count = cs_disasm(handle, reinterpret_cast<LPCBYTE>(address_iterator), 16, reinterpret_cast<uintptr_t>(address_iterator), static_cast<size_t>(0x0), &instructions);
-
-					if (!disasm_count)
-						break;
-
-					auto insn_length = instructions[0].size;
-
-					if (insn_length == 0x1) {
-
-						cs_insn* sub_instruction = nullptr;
-
-						auto sub_disasm_count = cs_disasm(handle, reinterpret_cast<LPCBYTE>(address_iterator + 1), 16, reinterpret_cast<uintptr_t>(address_iterator + 1), static_cast<size_t>(0x0), &sub_instruction);
-
-						if (sub_disasm_count) {
-
-							if (sub_instruction[0].size == 0x1) {
-
-								if (*reinterpret_cast<LPCWORD>(address_iterator) == 0xCCCC) {
-									cs_free(sub_instruction, sub_disasm_count);
-									break;
-								}
-
-							}
-							cs_free(sub_instruction, sub_disasm_count);
-						}
-					}
-
-					function_size += insn_length;
-					address_iterator += insn_length;
-
-					cs_free(instructions, disasm_count);
-
-				}
-
-				return function_size;
+				return pdfn::get_function_length(fn_address);
 			}
 		
 		};

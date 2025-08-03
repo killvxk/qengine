@@ -1,6 +1,6 @@
 // This file is part of AsmJit project <https://asmjit.com>
 //
-// See asmjit.h or LICENSE.md for license and copyright information
+// See <asmjit/core.h> or LICENSE.md for license and copyright information
 // SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_CORE_OSUTILS_H_INCLUDED
@@ -12,13 +12,6 @@ ASMJIT_BEGIN_NAMESPACE
 
 //! \addtogroup asmjit_utilities
 //! \{
-
-//! Operating system utilities.
-namespace OSUtils {
-  //! Gets the current CPU tick count, used for benchmarking (1ms resolution).
-  ASMJIT_API uint32_t getTickCount() noexcept;
-};
-
 
 //! \cond INTERNAL
 //! Lock.
@@ -42,15 +35,15 @@ public:
   Handle _handle;
 #pragma pack(pop)
 #elif !defined(__EMSCRIPTEN__)
-  typedef pthread_mutex_t Handle;
+  using Handle = pthread_mutex_t;
   Handle _handle;
 #endif
 
-  ASMJIT_FORCE_INLINE Lock() noexcept;
-  ASMJIT_FORCE_INLINE ~Lock() noexcept;
+  ASMJIT_INLINE_NODEBUG Lock() noexcept;
+  ASMJIT_INLINE_NODEBUG ~Lock() noexcept;
 
-  ASMJIT_FORCE_INLINE void lock() noexcept;
-  ASMJIT_FORCE_INLINE void unlock() noexcept;
+  ASMJIT_INLINE_NODEBUG void lock() noexcept;
+  ASMJIT_INLINE_NODEBUG void unlock() noexcept;
 };
 //! \endcond
 

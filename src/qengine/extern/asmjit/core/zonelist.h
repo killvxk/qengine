@@ -1,6 +1,6 @@
 // This file is part of AsmJit project <https://asmjit.com>
 //
-// See asmjit.h or LICENSE.md for license and copyright information
+// See <asmjit/core.h> or LICENSE.md for license and copyright information
 // SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_CORE_ZONELIST_H_INCLUDED
@@ -22,10 +22,8 @@ public:
   //! \name Constants
   //! \{
 
-  enum : size_t {
-    kNodeIndexPrev = 0,
-    kNodeIndexNext = 1
-  };
+  static inline constexpr size_t kNodeIndexPrev = 0;
+  static inline constexpr size_t kNodeIndexNext = 1;
 
   //! \}
 
@@ -39,22 +37,28 @@ public:
   //! \name Construction & Destruction
   //! \{
 
-  inline ZoneListNode() noexcept
-    : _listNodes { nullptr, nullptr } {}
+  ASMJIT_INLINE_NODEBUG ZoneListNode() noexcept
+    : _listNodes{nullptr, nullptr} {}
 
-  inline ZoneListNode(ZoneListNode&& other) noexcept
-    : _listNodes { other._listNodes[0], other._listNodes[1] } {}
+  ASMJIT_INLINE_NODEBUG ZoneListNode(ZoneListNode&& other) noexcept
+    : _listNodes{other._listNodes[0], other._listNodes[1]} {}
 
   //! \}
 
   //! \name Accessors
   //! \{
 
-  inline bool hasPrev() const noexcept { return _listNodes[kNodeIndexPrev] != nullptr; }
-  inline bool hasNext() const noexcept { return _listNodes[kNodeIndexNext] != nullptr; }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool hasPrev() const noexcept { return _listNodes[kNodeIndexPrev] != nullptr; }
 
-  inline NodeT* prev() const noexcept { return _listNodes[kNodeIndexPrev]; }
-  inline NodeT* next() const noexcept { return _listNodes[kNodeIndexNext]; }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool hasNext() const noexcept { return _listNodes[kNodeIndexNext] != nullptr; }
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG NodeT* prev() const noexcept { return _listNodes[kNodeIndexPrev]; }
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG NodeT* next() const noexcept { return _listNodes[kNodeIndexNext]; }
 
   //! \}
 };
@@ -68,30 +72,27 @@ public:
   //! \name Constants
   //! \{
 
-  enum : size_t {
-    kNodeIndexFirst = 0,
-    kNodeIndexLast = 1
-  };
+  static inline constexpr size_t kNodeIndexFirst = 0;
+  static inline constexpr size_t kNodeIndexLast = 1;
 
   //! \}
 
   //! \name Members
   //! \{
 
-  NodeT* _nodes[2];
+  NodeT* _nodes[2] {};
 
   //! \}
 
   //! \name Construction & Destruction
   //! \{
 
-  inline ZoneList() noexcept
-    : _nodes { nullptr, nullptr } {}
+  ASMJIT_INLINE_NODEBUG ZoneList() noexcept {}
 
-  inline ZoneList(ZoneList&& other) noexcept
+  ASMJIT_INLINE_NODEBUG ZoneList(ZoneList&& other) noexcept
     : _nodes { other._nodes[0], other._nodes[1] } {}
 
-  inline void reset() noexcept {
+  ASMJIT_INLINE_NODEBUG void reset() noexcept {
     _nodes[0] = nullptr;
     _nodes[1] = nullptr;
   }
@@ -101,16 +102,21 @@ public:
   //! \name Accessors
   //! \{
 
-  inline bool empty() const noexcept { return _nodes[0] == nullptr; }
-  inline NodeT* first() const noexcept { return _nodes[kNodeIndexFirst]; }
-  inline NodeT* last() const noexcept { return _nodes[kNodeIndexLast]; }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool empty() const noexcept { return _nodes[0] == nullptr; }
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG NodeT* first() const noexcept { return _nodes[kNodeIndexFirst]; }
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG NodeT* last() const noexcept { return _nodes[kNodeIndexLast]; }
 
   //! \}
 
   //! \name Utilities
   //! \{
 
-  inline void swap(ZoneList& other) noexcept {
+  ASMJIT_INLINE_NODEBUG void swap(ZoneList& other) noexcept {
     std::swap(_nodes[0], other._nodes[0]);
     std::swap(_nodes[1], other._nodes[1]);
   }
@@ -121,10 +127,12 @@ public:
 
     node->_listNodes[!dir] = prev;
     _nodes[dir] = node;
-    if (prev)
+    if (prev) {
       prev->_listNodes[dir] = node;
-    else
+    }
+    else {
       _nodes[!dir] = node;
+    }
   }
 
   // Can be used to both append and prepend.
@@ -135,27 +143,29 @@ public:
     NodeT* next = ref->_listNodes[dir];
 
     prev->_listNodes[dir] = node;
-    if (next)
+    if (next) {
       next->_listNodes[!dir] = node;
-    else
+    }
+    else {
       _nodes[dir] = node;
+    }
 
     node->_listNodes[!dir] = prev;
     node->_listNodes[ dir] = next;
   }
 
-  inline void append(NodeT* node) noexcept { _addNode(node, kNodeIndexLast); }
-  inline void prepend(NodeT* node) noexcept { _addNode(node, kNodeIndexFirst); }
+  ASMJIT_INLINE_NODEBUG void append(NodeT* node) noexcept { _addNode(node, kNodeIndexLast); }
+  ASMJIT_INLINE_NODEBUG void prepend(NodeT* node) noexcept { _addNode(node, kNodeIndexFirst); }
 
-  inline void insertAfter(NodeT* ref, NodeT* node) noexcept { _insertNode(ref, node, NodeT::kNodeIndexNext); }
-  inline void insertBefore(NodeT* ref, NodeT* node) noexcept { _insertNode(ref, node, NodeT::kNodeIndexPrev); }
+  ASMJIT_INLINE_NODEBUG void insertAfter(NodeT* ref, NodeT* node) noexcept { _insertNode(ref, node, NodeT::kNodeIndexNext); }
+  ASMJIT_INLINE_NODEBUG void insertBefore(NodeT* ref, NodeT* node) noexcept { _insertNode(ref, node, NodeT::kNodeIndexPrev); }
 
   inline NodeT* unlink(NodeT* node) noexcept {
     NodeT* prev = node->prev();
     NodeT* next = node->next();
 
-    if (prev) { prev->_listNodes[1] = next; node->_listNodes[0] = nullptr; } else { _nodes[0] = next; }
-    if (next) { next->_listNodes[0] = prev; node->_listNodes[1] = nullptr; } else { _nodes[1] = prev; }
+    if (prev) { prev->_listNodes[1] = next; } else { _nodes[0] = next; }
+    if (next) { next->_listNodes[0] = prev; } else { _nodes[1] = prev; }
 
     node->_listNodes[0] = nullptr;
     node->_listNodes[1] = nullptr;
@@ -163,6 +173,7 @@ public:
     return node;
   }
 
+  [[nodiscard]]
   inline NodeT* popFirst() noexcept {
     NodeT* node = _nodes[0];
     ASMJIT_ASSERT(node != nullptr);
@@ -181,6 +192,7 @@ public:
     return node;
   }
 
+  [[nodiscard]]
   inline NodeT* pop() noexcept {
     NodeT* node = _nodes[1];
     ASMJIT_ASSERT(node != nullptr);

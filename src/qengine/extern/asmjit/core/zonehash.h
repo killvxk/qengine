@@ -1,6 +1,6 @@
 // This file is part of AsmJit project <https://asmjit.com>
 //
-// See asmjit.h or LICENSE.md for license and copyright information
+// See <asmjit/core.h> or LICENSE.md for license and copyright information
 // SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_CORE_ZONEHASH_H_INCLUDED
@@ -59,7 +59,7 @@ public:
   //! \name Construction & Destruction
   //! \{
 
-  inline ZoneHashBase() noexcept {
+  ASMJIT_INLINE_NODEBUG ZoneHashBase() noexcept {
     reset();
   }
 
@@ -73,7 +73,9 @@ public:
     _primeIndex = other._primeIndex;
     _embedded[0] = other._embedded[0];
 
-    if (_data == other._embedded) _data = _embedded;
+    if (_data == other._embedded) {
+      _data = _embedded;
+    }
   }
 
   inline void reset() noexcept {
@@ -89,8 +91,9 @@ public:
 
   inline void release(ZoneAllocator* allocator) noexcept {
     ZoneHashNode** oldData = _data;
-    if (oldData != _embedded)
+    if (oldData != _embedded) {
       allocator->release(oldData, _bucketsCount * sizeof(ZoneHashNode*));
+    }
     reset();
   }
 
@@ -99,8 +102,11 @@ public:
   //! \name Accessors
   //! \{
 
-  inline bool empty() const noexcept { return _size == 0; }
-  inline size_t size() const noexcept { return _size; }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool empty() const noexcept { return _size == 0; }
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG size_t size() const noexcept { return _size; }
 
   //! \}
 
@@ -117,8 +123,13 @@ public:
     std::swap(_primeIndex, other._primeIndex);
     std::swap(_embedded[0], other._embedded[0]);
 
-    if (_data == other._embedded) _data = _embedded;
-    if (other._data == _embedded) other._data = other._embedded;
+    if (_data == other._embedded) {
+      _data = _embedded;
+    }
+
+    if (other._data == _embedded) {
+      other._data = other._embedded;
+    }
   }
 
   //! \cond INTERNAL
@@ -145,15 +156,15 @@ class ZoneHash : public ZoneHashBase {
 public:
   ASMJIT_NONCOPYABLE(ZoneHash)
 
-  typedef NodeT Node;
+  using Node = NodeT;
 
   //! \name Construction & Destruction
   //! \{
 
-  inline ZoneHash() noexcept
+  ASMJIT_INLINE_NODEBUG ZoneHash() noexcept
     : ZoneHashBase() {}
 
-  inline ZoneHash(ZoneHash&& other) noexcept
+  ASMJIT_INLINE_NODEBUG ZoneHash(ZoneHash&& other) noexcept
     : ZoneHash(other) {}
 
   //! \}
@@ -161,20 +172,22 @@ public:
   //! \name Utilities
   //! \{
 
-  inline void swap(ZoneHash& other) noexcept { ZoneHashBase::_swap(other); }
+  ASMJIT_INLINE_NODEBUG void swap(ZoneHash& other) noexcept { ZoneHashBase::_swap(other); }
 
   template<typename KeyT>
+  [[nodiscard]]
   inline NodeT* get(const KeyT& key) const noexcept {
     uint32_t hashMod = _calcMod(key.hashCode());
     NodeT* node = static_cast<NodeT*>(_data[hashMod]);
 
-    while (node && !key.matches(node))
+    while (node && !key.matches(node)) {
       node = static_cast<NodeT*>(node->_hashNext);
+    }
     return node;
   }
 
-  inline NodeT* insert(ZoneAllocator* allocator, NodeT* node) noexcept { return static_cast<NodeT*>(_insert(allocator, node)); }
-  inline NodeT* remove(ZoneAllocator* allocator, NodeT* node) noexcept { return static_cast<NodeT*>(_remove(allocator, node)); }
+  ASMJIT_INLINE_NODEBUG NodeT* insert(ZoneAllocator* allocator, NodeT* node) noexcept { return static_cast<NodeT*>(_insert(allocator, node)); }
+  ASMJIT_INLINE_NODEBUG NodeT* remove(ZoneAllocator* allocator, NodeT* node) noexcept { return static_cast<NodeT*>(_remove(allocator, node)); }
 
   //! \}
 };

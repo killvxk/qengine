@@ -1,8 +1,6 @@
 #ifndef QEXCEPT_H
 #define QEXCEPT_H
 
-#include "qdef.hpp"
-
 #include <string>
 
 namespace qengine {
@@ -12,11 +10,11 @@ namespace qengine {
 
 		struct qexcept_t {
 
-			mut std::string message;
+			std::string message;
 
-			mut std::uint32_t id;
+			std::uint32_t id;
 
-			mut bool iserror;
+			bool iserror;
 		};
 
 #pragma endregion
@@ -44,7 +42,7 @@ namespace qengine {
 			FN_HASH_CORRUPT
 		};
 
-		static constexpr imut char* qexcept_mem_str[8]{
+		static constexpr const char* qexcept_mem_str[8]{
 
 			"BAD_ALLOC",
 
@@ -69,14 +67,13 @@ namespace qengine {
 
 		struct qexcept_mem : qexcept_t {
 
-			__optimized_ctor qexcept_mem(qexcept_mem_e except_t) noexcept {
+			inline qexcept_mem(qexcept_mem_e except_t) noexcept {
 
 				message = std::string(qexcept_mem_str[except_t]) ;
 
 				id = except_t;
 
 				// Unnecessary placeholder switch statement, but it's here for future expansion
-
 				switch (except_t) {
 
 					case BAD_ALLOC: {
@@ -123,16 +120,17 @@ namespace qengine {
 #pragma region Memory Exception Presets
 
 		struct q_badalloc : qexcept_mem {
+
 			q_badalloc() : qexcept_mem(qexcept_mem_e::BAD_ALLOC) {  }
 		};
 
-#define hash_t std::uintptr_t	
-
 		struct q_rogueaccess : qexcept_mem {
 
-			hash_t original_hash;
-			hash_t altered_hash;
-			q_rogueaccess(hash_t oldhash, hash_t newhash) : qexcept_mem(qexcept_mem_e::MEMORY_ALTERATION) { original_hash = oldhash; altered_hash = newhash; };
+			std::uintptr_t original_hash;
+
+			std::uintptr_t altered_hash;
+
+			q_rogueaccess(std::uintptr_t oldhash, std::uintptr_t newhash) : qexcept_mem(qexcept_mem_e::MEMORY_ALTERATION) { original_hash = oldhash; altered_hash = newhash; };
 		};
 
 #pragma endregion

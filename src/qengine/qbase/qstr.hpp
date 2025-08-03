@@ -23,9 +23,13 @@
 
 #pragma region Imports
 
-#pragma region qengine
+#pragma region std
 
-#include "qdef.hpp"
+#include <tuple>
+#include <string>
+#include <memory>
+#include <algorithm>
+#include <cstdint>
 
 #pragma endregion
 
@@ -41,7 +45,7 @@ using qclean_type = typename std::remove_const_t<std::remove_reference_t<C>>;
 #pragma region Output Macro
 
 #define QSTR(__STR__) []() { \
-		imutexpr static auto _QSTR_ = qstr_object \
+		constexpr static auto _QSTR_ = qstr_object \
 			<sizeof(__STR__) / sizeof(__STR__[0]), qclean_type< decltype( __STR__[0] ) >>((qclean_type<decltype(__STR__[0])>*)__STR__); \
 				return _QSTR_; }()
 
@@ -49,46 +53,46 @@ using qclean_type = typename std::remove_const_t<std::remove_reference_t<C>>;
 
 #pragma region Compile-time Constants
 
-imut imutexpr std::int8_t _QSTR_KEY = (__TIME__[7] | __TIME__[4] | __TIME__[0]) ^ BYTE_SET;
+const constexpr std::int8_t _QSTR_KEY = ~(__TIME__[7] | __TIME__[4] | __TIME__[0]);
 
 #pragma endregion
 
-template <imut std::int32_t _size, typename T>
+template <const std::int32_t _size, typename T>
 class qstr_object
 {
 
 private:
 
-    mut T _storage[_size]{};
+    mutable T _storage[_size]{};
 
-    __compelled_inline imutexpr void qcrypt(imut T *data) nex {
+    __forceinline constexpr void qcrypt(const T *data) noexcept {
 
         for (int i = 0; i < _size; i++)
-            _storage[i] = ( ( data[i] ^ _QSTR_KEY ) ^ ( (__TIME__[0] ^  __TIME__[4] ^ __TIME__[6]) ^ BYTE_SET ) );
+            _storage[i] = ( ( data[i] ^ _QSTR_KEY ) ^ ( (__TIME__[0] ^  __TIME__[4] ^ __TIME__[6]) ^ 0xFF ) );
     }
 
 public:
 
 #pragma region Ctor
 
-    __compelled_inline imutexpr qstr_object(imut T *data) nex {
+    __forceinline constexpr qstr_object(const T *data) noexcept {
 
         qcrypt(data);
     }
 
 #pragma endregion
 
-    __compelled_inline imut std::int32_t size() imut nex {
+    __forceinline const std::int32_t size() const noexcept {
 
         return _size;
     }
 
-    __compelled_inline imut bool __stackcall is_crypted() imut nex {
+    __forceinline const bool __cdecl is_crypted() const noexcept {
 
         return _storage[_size - 1] != 0;
     }
 
-    __compelled_inline T* crypter_routine() nex {
+    __forceinline T* crypter_routine() noexcept {
 
         if (is_crypted())
             qcrypt(_storage);
@@ -96,21 +100,21 @@ public:
         return _storage;
     }
 
-    __compelled_inline void __stackcall clear() nex {
+    __forceinline void __cdecl clear() noexcept {
 
         RtlZeroMemory(_storage, _size);
     }
 
-    __compelled_inline __stackcall operator T* () muteval nex {
+    __forceinline __cdecl operator T* () noexcept {
 
-        return imut_cast<T*>(
+        return const_cast<T*>(
             crypter_routine()
         );
     }
 
-    __compelled_inline imut T* get() nex {
+    __forceinline const T* get() noexcept {
 
-        return imut_cast<T*>(
+        return const_cast<T*>(
             crypter_routine()
         );
     }

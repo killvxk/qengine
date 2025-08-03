@@ -1,6 +1,6 @@
 // This file is part of AsmJit project <https://asmjit.com>
 //
-// See asmjit.h or LICENSE.md for license and copyright information
+// See <asmjit/core.h> or LICENSE.md for license and copyright information
 // SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_CORE_ZONESTACK_H_INCLUDED
@@ -21,15 +21,13 @@ public:
   //! \name Constants
   //! \{
 
-  enum : size_t {
-    kBlockIndexPrev = 0,
-    kBlockIndexNext = 1,
+  static inline constexpr size_t kBlockIndexPrev = 0;
+  static inline constexpr size_t kBlockIndexNext = 1;
 
-    kBlockIndexFirst = 0,
-    kBlockIndexLast = 1,
+  static inline constexpr size_t kBlockIndexFirst = 0;
+  static inline constexpr size_t kBlockIndexLast = 1;
 
-    kBlockSize = ZoneAllocator::kHiMaxSize
-  };
+  static inline constexpr size_t kBlockSize = ZoneAllocator::kHiMaxSize;
 
   //! \}
 
@@ -44,31 +42,47 @@ public:
     //! Pointer to the end of the array.
     void* _end;
 
-    inline bool empty() const noexcept { return _start == _end; }
-    inline Block* prev() const noexcept { return _link[kBlockIndexPrev]; }
-    inline Block* next() const noexcept { return _link[kBlockIndexNext]; }
+    [[nodiscard]]
+    ASMJIT_INLINE_NODEBUG bool empty() const noexcept { return _start == _end; }
 
-    inline void setPrev(Block* block) noexcept { _link[kBlockIndexPrev] = block; }
-    inline void setNext(Block* block) noexcept { _link[kBlockIndexNext] = block; }
+    [[nodiscard]]
+    ASMJIT_INLINE_NODEBUG Block* prev() const noexcept { return _link[kBlockIndexPrev]; }
 
-    template<typename T>
-    inline T* start() const noexcept { return static_cast<T*>(_start); }
-    template<typename T>
-    inline void setStart(T* start) noexcept { _start = static_cast<void*>(start); }
+    [[nodiscard]]
+    ASMJIT_INLINE_NODEBUG Block* next() const noexcept { return _link[kBlockIndexNext]; }
 
-    template<typename T>
-    inline T* end() const noexcept { return (T*)_end; }
-    template<typename T>
-    inline void setEnd(T* end) noexcept { _end = (void*)end; }
+    ASMJIT_INLINE_NODEBUG void setPrev(Block* block) noexcept { _link[kBlockIndexPrev] = block; }
+    ASMJIT_INLINE_NODEBUG void setNext(Block* block) noexcept { _link[kBlockIndexNext] = block; }
 
     template<typename T>
-    inline T* data() const noexcept { return (T*)((uint8_t*)(this) + sizeof(Block)); }
+    [[nodiscard]]
+    ASMJIT_INLINE_NODEBUG T* start() const noexcept { return static_cast<T*>(_start); }
 
     template<typename T>
-    inline bool canPrepend() const noexcept { return _start > data<void>(); }
+    ASMJIT_INLINE_NODEBUG void setStart(T* start) noexcept { _start = static_cast<void*>(start); }
 
     template<typename T>
-    inline bool canAppend() const noexcept {
+    [[nodiscard]]
+    ASMJIT_INLINE_NODEBUG T* end() const noexcept { return (T*)_end; }
+
+    template<typename T>
+    ASMJIT_INLINE_NODEBUG void setEnd(T* end) noexcept { _end = (void*)end; }
+
+    template<typename T>
+    [[nodiscard]]
+    ASMJIT_INLINE_NODEBUG const T* data() const noexcept { return (const T*)((const uint8_t*)(this) + sizeof(Block)); }
+
+    template<typename T>
+    [[nodiscard]]
+    ASMJIT_INLINE_NODEBUG T* data() noexcept { return (T*)((uint8_t*)(this) + sizeof(Block)); }
+
+    template<typename T>
+    [[nodiscard]]
+    ASMJIT_INLINE_NODEBUG bool canPrepend() const noexcept { return _start > data<void>(); }
+
+    template<typename T>
+    [[nodiscard]]
+    ASMJIT_INLINE_NODEBUG bool canAppend() const noexcept {
       size_t kNumBlockItems = (kBlockSize - sizeof(Block)) / sizeof(T);
       size_t kStartBlockIndex = sizeof(Block);
       size_t kEndBlockIndex = kStartBlockIndex + kNumBlockItems * sizeof(T);
@@ -83,25 +97,21 @@ public:
   //! \{
 
   //! Allocator used to allocate data.
-  ZoneAllocator* _allocator;
+  ZoneAllocator* _allocator {};
   //! First and last blocks.
-  Block* _block[2];
+  Block* _block[2] {};
 
   //! \}
 
   //! \name Construction & Destruction
   //! \{
 
-  inline ZoneStackBase() noexcept {
-    _allocator = nullptr;
-    _block[0] = nullptr;
-    _block[1] = nullptr;
-  }
-  inline ~ZoneStackBase() noexcept { reset(); }
+  ASMJIT_INLINE_NODEBUG ZoneStackBase() noexcept {}
+  ASMJIT_INLINE_NODEBUG ~ZoneStackBase() noexcept { reset(); }
 
-  inline bool isInitialized() const noexcept { return _allocator != nullptr; }
+  ASMJIT_INLINE_NODEBUG bool isInitialized() const noexcept { return _allocator != nullptr; }
   ASMJIT_API Error _init(ZoneAllocator* allocator, size_t middleIndex) noexcept;
-  inline Error reset() noexcept { return _init(nullptr, 0); }
+  ASMJIT_INLINE_NODEBUG Error reset() noexcept { return _init(nullptr, 0); }
 
   //! \}
 
@@ -109,8 +119,10 @@ public:
   //! \{
 
   //! Returns `ZoneAllocator` attached to this container.
-  inline ZoneAllocator* allocator() const noexcept { return _allocator; }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG ZoneAllocator* allocator() const noexcept { return _allocator; }
 
+  [[nodiscard]]
   inline bool empty() const noexcept {
     ASMJIT_ASSERT(isInitialized());
     return _block[0]->start<void>() == _block[1]->end<void>();
@@ -122,7 +134,9 @@ public:
   //! \name Internal
   //! \{
 
+  [[nodiscard]]
   ASMJIT_API Error _prepareBlock(uint32_t side, size_t initialIndex) noexcept;
+
   ASMJIT_API void _cleanupBlock(uint32_t side, size_t middleIndex) noexcept;
 
   //! \}
@@ -138,12 +152,10 @@ public:
   //! \name Constants
   //! \{
 
-  enum : uint32_t {
-    kNumBlockItems   = uint32_t((kBlockSize - sizeof(Block)) / sizeof(T)),
-    kStartBlockIndex = uint32_t(sizeof(Block)),
-    kMidBlockIndex   = uint32_t(kStartBlockIndex + (kNumBlockItems / 2) * sizeof(T)),
-    kEndBlockIndex   = uint32_t(kStartBlockIndex + (kNumBlockItems    ) * sizeof(T))
-  };
+  static inline constexpr uint32_t kNumBlockItems   = uint32_t((kBlockSize - sizeof(Block)) / sizeof(T));
+  static inline constexpr uint32_t kStartBlockIndex = uint32_t(sizeof(Block));
+  static inline constexpr uint32_t kMidBlockIndex   = uint32_t(kStartBlockIndex + (kNumBlockItems / 2) * sizeof(T));
+  static inline constexpr uint32_t kEndBlockIndex   = uint32_t(kStartBlockIndex + (kNumBlockItems    ) * sizeof(T));
 
   //! \}
 
@@ -193,6 +205,7 @@ public:
     return kErrorOk;
   }
 
+  [[nodiscard]]
   inline T popFirst() noexcept {
     ASMJIT_ASSERT(isInitialized());
     ASMJIT_ASSERT(!empty());
@@ -204,12 +217,14 @@ public:
     T item = *ptr++;
 
     block->setStart(ptr);
-    if (block->empty())
+    if (block->empty()) {
       _cleanupBlock(kBlockIndexFirst, kMidBlockIndex);
+    }
 
     return item;
   }
 
+  [[nodiscard]]
   inline T pop() noexcept {
     ASMJIT_ASSERT(isInitialized());
     ASMJIT_ASSERT(!empty());
@@ -223,8 +238,9 @@ public:
     ASMJIT_ASSERT(ptr >= block->start<T>());
 
     block->setEnd(ptr);
-    if (block->empty())
+    if (block->empty()) {
       _cleanupBlock(kBlockIndexLast, kMidBlockIndex);
+    }
 
     return item;
   }

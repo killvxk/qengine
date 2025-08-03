@@ -1,6 +1,6 @@
 // This file is part of AsmJit project <https://asmjit.com>
 //
-// See asmjit.h or LICENSE.md for license and copyright information
+// See <asmjit/core.h> or LICENSE.md for license and copyright information
 // SPDX-License-Identifier: Zlib
 
 #include "../core/api-build_p.h"
@@ -18,6 +18,14 @@ ASMJIT_BEGIN_NAMESPACE
 Logger::Logger() noexcept
   : _options() {}
 Logger::~Logger() noexcept {}
+
+// [[pure virtual]]
+Error Logger::_log(const char* data, size_t size) noexcept {
+  DebugUtils::unused(data, size);
+
+  // Do not error in this case - the logger would just sink to /dev/null.
+  return kErrorOk;
+}
 
 Error Logger::logf(const char* fmt, ...) noexcept {
   Error err;
@@ -44,11 +52,13 @@ FileLogger::FileLogger(FILE* file) noexcept
 FileLogger::~FileLogger() noexcept {}
 
 Error FileLogger::_log(const char* data, size_t size) noexcept {
-  if (!_file)
+  if (!_file) {
     return kErrorOk;
+  }
 
-  if (size == SIZE_MAX)
+  if (size == SIZE_MAX) {
     size = strlen(data);
+  }
 
   fwrite(data, 1, size, _file);
   return kErrorOk;

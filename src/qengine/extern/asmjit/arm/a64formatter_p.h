@@ -1,6 +1,6 @@
 // This file is part of AsmJit project <https://asmjit.com>
 //
-// See asmjit.h or LICENSE.md for license and copyright information
+// See <asmjit/core.h> or LICENSE.md for license and copyright information
 // SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_ARM_A64FORMATTER_P_H_INCLUDED
@@ -23,23 +23,6 @@ ASMJIT_BEGIN_SUB_NAMESPACE(a64)
 namespace FormatterInternal {
 
 using namespace arm::FormatterInternal;
-
-Error ASMJIT_CDECL formatRegister(
-  String& sb,
-  FormatFlags flags,
-  const BaseEmitter* emitter,
-  Arch arch,
-  RegType regType,
-  uint32_t regId,
-  uint32_t elementType = 0,
-  uint32_t elementIndex = 0xFFFFFFFFu) noexcept;
-
-Error ASMJIT_CDECL formatOperand(
-  String& sb,
-  FormatFlags flags,
-  const BaseEmitter* emitter,
-  Arch arch,
-  const Operand_& op) noexcept;
 
 Error ASMJIT_CDECL formatInstruction(
   String& sb,

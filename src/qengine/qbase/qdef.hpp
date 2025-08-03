@@ -9,18 +9,19 @@
 
 #pragma region Windows
 
+#define NOMINMAX
+
 #include <windows.h>
 #include <Psapi.h>
 
 #pragma endregion
 
-#pragma region std
+#pragma region qengine
 
-#include <tuple>
-#include <string>
-#include <memory>
-#include <algorithm>
-#include <cstdint>
+#include "../qimport/qimport.hpp"
+#include "qcallback.hpp"
+#include "qpreprocess.hpp"
+#include "qstr.hpp"
 
 #pragma endregion
 
@@ -37,7 +38,21 @@
 
 #pragma endregion
 
-#pragma region Ulterior Qualifier References
+#pragma region Obfuscated Imports
+
+/*
+	If you are Weary of Runtime Imports due to your Target Application of qengine, you can Define QUSE_ITABLE_VIRTUALPROTECT to use the VirtualProtect Function Directly from the Windows API which Includes it in the 
+	DiskImage Import / IDATA List
+*/
+#ifndef QUSE_ITABLE_VIRTUALPROTECT
+inline const auto virtualprotect_rtImp_inst = qengine::qimport::qimp::get_fn_import_object<BOOL, LPVOID, SIZE_T, DWORD, DWORD*>(QSTR(L"kernel32.dll").get(), QSTR("VirtualProtect").get());
+#else
+inline const auto virtualprotect_rtImp_inst = VirtualProtect;
+#endif
+
+#pragma endregion
+
+#pragma region Ulterior Qualifier / Type References
 
 // I like Rust's syntax as far as the explicit qualifiers go, it's more verbose but it's explicit and clear
 
@@ -74,11 +89,11 @@ static imut constexpr auto QCTIME_SEED = __TIME__[7];
 
 #ifdef _WIN64
 
-#define BIT_SCRAMBLE 0x0101010101010101ui64
+#define BIT_SCRAMBLE 0x0F0F0F0F0F0F0F01ui64
 
 #else
 
-#define BIT_SCRAMBLE 0x01010101ui32
+#define BIT_SCRAMBLE 0x0F0F0F0Fui32
 
 #endif
 
@@ -86,15 +101,36 @@ static imut constexpr auto QCTIME_SEED = __TIME__[7];
 
 #pragma region Method Attributes
 
-#define __symbolic __declspec(noinline)	//	we only want a single instance of the declared fn per object, not instanced copies into caller functions
+#ifdef _MSC_VER
+
+#define __fpcall __vectorcall // Only use __vectorcall for MSVC
+#define __apicall __stdcall
+#define __regcall __fastcall	//	pass up to two arguments through registers(?) if supported by OS bitwidth vs Variable type
+#define __stackcall __cdecl		//	pass arguments on stack / no arguments contained allow caller to cleanup stack
+
+#else
+
+#define __fpcall // Define it as empty for other compilers like GCC
+#define __fpcall 
+#define __apicall 
+#define __regcall
+#define __stackcall
+
+#endif
+
+#if defined(_MSC_VER)
+#define NO_INLINE __declspec(noinline)
+#elif defined(__GNUC__) || defined(__clang__)
+#define NO_INLINE __attribute__((noinline))
+#else
+#define NO_INLINE
+#endif
+
+#define __symbolic NO_INLINE
 
 #define __apicall __stdcall
 
-#define __compelled_inline __forceinline	// compell function duplication / inlining and disable windows SEH 
-
-#define __regcall __fastcall	//	pass up to two arguments through registers(?) if supported by OS bitwidth vs Variable type
-
-#define __stackcall __cdecl		//	pass arguments on stack / no arguments contained allow caller to cleanup stack
+#define __compelled_inline FORCE_INLINE	// compell function duplication / inlining and disable windows SEH 
 
 #define _auto_type_ decltype(auto)	//	automatic type deduction for function returns
 
@@ -104,7 +140,7 @@ static imut constexpr auto QCTIME_SEED = __TIME__[7];
 
 #define __inlineable inline	//	this is a suggestion, not a command. why was it included in the language standard as a commanding word that has garaunteed effect?
 
-/* specify vectorcall if the project is compiled using extended types as this is better than fastcall for floating point numbers */
+/* specify vectorcall if the project is compiled using extended types as this is better than fastcall for floating point objects */
 #ifdef __SSE2__
 
 #define __fpcall __vectorcall
@@ -123,7 +159,7 @@ static imut constexpr auto QCTIME_SEED = __TIME__[7];
 
 	//  Dereference a ring -3 pointer rather than call _CxxRaiseException() directly to avoid another import table entry
 	//	Basic CXX exception handling callback obfuscation, call WINAPI_SEH_INIT(); at beginning of scope && WINAPI_SEH_END() or ';' at the end of the scope and it will be executed from a statically compiled SEH table entry for x86_64, or SEH handled on stack for x86
-#define WINAPI_SEH_INIT() __try { static volatile int* __INVALID_REGION__ = NULL; *__INVALID_REGION__ = 0xFFFFFFFFui32; } __except (GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) {
+#define WINAPI_SEH_INIT() __try { static volatile int* __INVALID_REGION__ = 0x0u; *__INVALID_REGION__ = 0xFFFFFFFFui32; } __except (GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) {
 
 #define WINAPI_SEH_END() }
 
@@ -135,9 +171,43 @@ static imut constexpr auto QCTIME_SEED = __TIME__[7];
 
 #pragma endregion 
 
+#pragma region Inline Template FNs
+
+/*
+	Defining these as Functions / Lambdas Increases Versatility in Conditional's of POLYC128 and Increases Security
+*/
+imut auto lambda_rol_shl_byte = [](imut std::uint8_t& b1, imut std::uint16_t& b2) -> std::uint8_t {
+	
+	return rshl(b1, b2);
+};
+
+imut auto lambda_rol_shr_byte = [](imut std::uint8_t& b1, imut std::uint16_t& b2) -> std::uint8_t {
+	
+	return rshr(b1, b2);
+};
+
+
+template <typename T, typename T2>
+static __compelled_inline imut T __regcall rol_shl(T base, T2 modifier) nex {
+
+	return rshl(base, modifier);
+}
+
+template <typename T, typename T2>
+static __compelled_inline imut T __regcall rol_shr(T base, T2 modifier) nex {
+
+	return rshr(base, modifier);
+}
+
+#pragma endregion
+
 #pragma region Macros
 
-#define __RAND__(_high_, _low_) rand() % _high_ + _low_ 
+//#define __RAND__(_high_, _low_) ((rand() % _high_ + _low_))
+#define __RAND__(_high_, _low_) ([]() -> std::uint32_t{ \
+    auto ___R___ = (rand() % (_high_) + (_low_)); \
+    return static_cast<std::uint32_t>(___R___ ? ___R___ : (_high_)); \
+}())
 
 #pragma region Memory
 

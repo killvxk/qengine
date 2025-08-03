@@ -1,6 +1,6 @@
 // This file is part of AsmJit project <https://asmjit.com>
 //
-// See asmjit.h or LICENSE.md for license and copyright information
+// See <asmjit/core.h> or LICENSE.md for license and copyright information
 // SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_CORE_STRING_H_INCLUDED
@@ -35,10 +35,7 @@ union FixedString {
   //! \name Constants
   //! \{
 
-  // This cannot be constexpr as GCC 4.8 refuses constexpr members of unions.
-  enum : uint32_t {
-    kNumUInt32Words = uint32_t((N + sizeof(uint32_t) - 1) / sizeof(uint32_t))
-  };
+  static inline constexpr uint32_t kNumUInt32Words = uint32_t((N + sizeof(uint32_t) - 1) / sizeof(uint32_t));
 
   //! \}
 
@@ -53,9 +50,8 @@ union FixedString {
   //! \name Utilities
   //! \{
 
-  inline bool eq(const char* other) const noexcept {
-    return strcmp(str, other) == 0;
-  }
+  [[nodiscard]]
+  inline bool equals(const char* other) const noexcept { return strcmp(str, other) == 0; }
 
   //! \}
 };
@@ -87,18 +83,13 @@ public:
   };
 
   //! \cond INTERNAL
-  enum : uint32_t {
-    kLayoutSize = 32,
-    kSSOCapacity = kLayoutSize - 2
-  };
+  static inline constexpr uint32_t kLayoutSize = 32;
+  static inline constexpr uint32_t kSSOCapacity = kLayoutSize - 2;
 
-  //! String type.
-  enum Type : uint8_t {
-    //! Large string (owned by String).
-    kTypeLarge = 0x1Fu,
-    //! External string (zone allocated or not owned by String).
-    kTypeExternal = 0x20u
-  };
+  //! Large string (owned by String).
+  static inline constexpr uint8_t kTypeLarge = 0x1Fu;
+  //! External string (zone allocated or not owned by String).
+  static inline constexpr uint8_t kTypeExternal = 0x20u;
 
   union Raw {
     uint8_t u8[kLayoutSize];
@@ -131,16 +122,16 @@ public:
   //! \{
 
   //! Creates a default-initialized string if zero length.
-  inline String() noexcept
+  ASMJIT_INLINE_NODEBUG String() noexcept
     : _small {} {}
 
   //! Creates a string that takes ownership of the content of the `other` string.
-  inline String(String&& other) noexcept {
+  ASMJIT_INLINE_NODEBUG String(String&& other) noexcept {
     _raw = other._raw;
     other._resetInternal();
   }
 
-  inline ~String() noexcept {
+  ASMJIT_INLINE_NODEBUG ~String() noexcept {
     reset();
   }
 
@@ -158,37 +149,60 @@ public:
     return *this;
   }
 
-  inline bool operator==(const char* other) const noexcept { return  eq(other); }
-  inline bool operator!=(const char* other) const noexcept { return !eq(other); }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool operator==(const char* other) const noexcept { return  equals(other); }
 
-  inline bool operator==(const String& other) const noexcept { return  eq(other); }
-  inline bool operator!=(const String& other) const noexcept { return !eq(other); }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool operator!=(const char* other) const noexcept { return !equals(other); }
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool operator==(const String& other) const noexcept { return  equals(other); }
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool operator!=(const String& other) const noexcept { return !equals(other); }
 
   //! \}
 
   //! \name Accessors
   //! \{
 
-  inline bool isExternal() const noexcept { return _type == kTypeExternal; }
-  inline bool isLargeOrExternal() const noexcept { return _type >= kTypeLarge; }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool isExternal() const noexcept { return _type == kTypeExternal; }
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool isLargeOrExternal() const noexcept { return _type >= kTypeLarge; }
 
   //! Tests whether the string is empty.
-  inline bool empty() const noexcept { return size() == 0; }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool empty() const noexcept { return size() == 0; }
+
   //! Returns the size of the string.
-  inline size_t size() const noexcept { return isLargeOrExternal() ? size_t(_large.size) : size_t(_type); }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG size_t size() const noexcept { return isLargeOrExternal() ? size_t(_large.size) : size_t(_type); }
+
   //! Returns the capacity of the string.
-  inline size_t capacity() const noexcept { return isLargeOrExternal() ? _large.capacity : size_t(kSSOCapacity); }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG size_t capacity() const noexcept { return isLargeOrExternal() ? _large.capacity : size_t(kSSOCapacity); }
 
   //! Returns the data of the string.
-  inline char* data() noexcept { return isLargeOrExternal() ? _large.data : _small.data; }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG char* data() noexcept { return isLargeOrExternal() ? _large.data : _small.data; }
+
   //! \overload
-  inline const char* data() const noexcept { return isLargeOrExternal() ? _large.data : _small.data; }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG const char* data() const noexcept { return isLargeOrExternal() ? _large.data : _small.data; }
 
-  inline char* start() noexcept { return data(); }
-  inline const char* start() const noexcept { return data(); }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG char* start() noexcept { return data(); }
 
-  inline char* end() noexcept { return data() + size(); }
-  inline const char* end() const noexcept { return data() + size(); }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG const char* start() const noexcept { return data(); }
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG char* end() noexcept { return data() + size(); }
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG const char* end() const noexcept { return data() + size(); }
 
   //! \}
 
@@ -196,13 +210,14 @@ public:
   //! \{
 
   //! Swaps the content of this string with `other`.
-  inline void swap(String& other) noexcept {
+  ASMJIT_INLINE_NODEBUG void swap(String& other) noexcept {
     std::swap(_raw, other._raw);
   }
 
   //! Clears the content of the string.
   ASMJIT_API Error clear() noexcept;
 
+  [[nodiscard]]
   ASMJIT_API char* prepare(ModifyOp op, size_t size) noexcept;
 
   ASMJIT_API Error _opString(ModifyOp op, const char* str, size_t size = SIZE_MAX) noexcept;
@@ -219,91 +234,91 @@ public:
   ASMJIT_API Error assign(const char* data, size_t size = SIZE_MAX) noexcept;
 
   //! Replaces the current of the string with `other` string.
-  inline Error assign(const String& other) noexcept {
+  ASMJIT_INLINE_NODEBUG Error assign(const String& other) noexcept {
     return assign(other.data(), other.size());
   }
 
   //! Replaces the current of the string by a single `c` character.
-  inline Error assign(char c) noexcept {
+  ASMJIT_INLINE_NODEBUG Error assign(char c) noexcept {
     return _opChar(ModifyOp::kAssign, c);
   }
 
   //! Replaces the current of the string by a `c` character, repeated `n` times.
-  inline Error assignChars(char c, size_t n) noexcept {
+  ASMJIT_INLINE_NODEBUG Error assignChars(char c, size_t n) noexcept {
     return _opChars(ModifyOp::kAssign, c, n);
   }
 
   //! Replaces the current of the string by a formatted integer `i` (signed).
-  inline Error assignInt(int64_t i, uint32_t base = 0, size_t width = 0, StringFormatFlags flags = StringFormatFlags::kNone) noexcept {
+  ASMJIT_INLINE_NODEBUG Error assignInt(int64_t i, uint32_t base = 0, size_t width = 0, StringFormatFlags flags = StringFormatFlags::kNone) noexcept {
     return _opNumber(ModifyOp::kAssign, uint64_t(i), base, width, flags | StringFormatFlags::kSigned);
   }
 
   //! Replaces the current of the string by a formatted integer `i` (unsigned).
-  inline Error assignUInt(uint64_t i, uint32_t base = 0, size_t width = 0, StringFormatFlags flags = StringFormatFlags::kNone) noexcept {
+  ASMJIT_INLINE_NODEBUG Error assignUInt(uint64_t i, uint32_t base = 0, size_t width = 0, StringFormatFlags flags = StringFormatFlags::kNone) noexcept {
     return _opNumber(ModifyOp::kAssign, i, base, width, flags);
   }
 
   //! Replaces the current of the string by the given `data` converted to a HEX string.
-  inline Error assignHex(const void* data, size_t size, char separator = '\0') noexcept {
+  ASMJIT_INLINE_NODEBUG Error assignHex(const void* data, size_t size, char separator = '\0') noexcept {
     return _opHex(ModifyOp::kAssign, data, size, separator);
   }
 
   //! Replaces the current of the string by a formatted string `fmt`.
   template<typename... Args>
-  inline Error assignFormat(const char* fmt, Args&&... args) noexcept {
+  ASMJIT_INLINE_NODEBUG Error assignFormat(const char* fmt, Args&&... args) noexcept {
     return _opFormat(ModifyOp::kAssign, fmt, std::forward<Args>(args)...);
   }
 
   //! Replaces the current of the string by a formatted string `fmt` (va_list version).
-  inline Error assignVFormat(const char* fmt, va_list ap) noexcept {
+  ASMJIT_INLINE_NODEBUG Error assignVFormat(const char* fmt, va_list ap) noexcept {
     return _opVFormat(ModifyOp::kAssign, fmt, ap);
   }
 
   //! Appends `str` having the given size `size` to the string.
   //!
   //! Null terminated strings can set `size` to `SIZE_MAX`.
-  inline Error append(const char* str, size_t size = SIZE_MAX) noexcept {
+  ASMJIT_INLINE_NODEBUG Error append(const char* str, size_t size = SIZE_MAX) noexcept {
     return _opString(ModifyOp::kAppend, str, size);
   }
 
   //! Appends `other` string to this string.
-  inline Error append(const String& other) noexcept {
+  ASMJIT_INLINE_NODEBUG Error append(const String& other) noexcept {
     return append(other.data(), other.size());
   }
 
   //! Appends a single `c` character.
-  inline Error append(char c) noexcept {
+  ASMJIT_INLINE_NODEBUG Error append(char c) noexcept {
     return _opChar(ModifyOp::kAppend, c);
   }
 
   //! Appends `c` character repeated `n` times.
-  inline Error appendChars(char c, size_t n) noexcept {
+  ASMJIT_INLINE_NODEBUG Error appendChars(char c, size_t n) noexcept {
     return _opChars(ModifyOp::kAppend, c, n);
   }
 
   //! Appends a formatted integer `i` (signed).
-  inline Error appendInt(int64_t i, uint32_t base = 0, size_t width = 0, StringFormatFlags flags = StringFormatFlags::kNone) noexcept {
+  ASMJIT_INLINE_NODEBUG Error appendInt(int64_t i, uint32_t base = 0, size_t width = 0, StringFormatFlags flags = StringFormatFlags::kNone) noexcept {
     return _opNumber(ModifyOp::kAppend, uint64_t(i), base, width, flags | StringFormatFlags::kSigned);
   }
 
   //! Appends a formatted integer `i` (unsigned).
-  inline Error appendUInt(uint64_t i, uint32_t base = 0, size_t width = 0, StringFormatFlags flags = StringFormatFlags::kNone) noexcept {
+  ASMJIT_INLINE_NODEBUG Error appendUInt(uint64_t i, uint32_t base = 0, size_t width = 0, StringFormatFlags flags = StringFormatFlags::kNone) noexcept {
     return _opNumber(ModifyOp::kAppend, i, base, width, flags);
   }
 
   //! Appends the given `data` converted to a HEX string.
-  inline Error appendHex(const void* data, size_t size, char separator = '\0') noexcept {
+  ASMJIT_INLINE_NODEBUG Error appendHex(const void* data, size_t size, char separator = '\0') noexcept {
     return _opHex(ModifyOp::kAppend, data, size, separator);
   }
 
   //! Appends a formatted string `fmt` with `args`.
   template<typename... Args>
-  inline Error appendFormat(const char* fmt, Args&&... args) noexcept {
+  ASMJIT_INLINE_NODEBUG Error appendFormat(const char* fmt, Args&&... args) noexcept {
     return _opFormat(ModifyOp::kAppend, fmt, std::forward<Args>(args)...);
   }
 
   //! Appends a formatted string `fmt` (va_list version).
-  inline Error appendVFormat(const char* fmt, va_list ap) noexcept {
+  ASMJIT_INLINE_NODEBUG Error appendVFormat(const char* fmt, va_list ap) noexcept {
     return _opVFormat(ModifyOp::kAppend, fmt, ap);
   }
 
@@ -312,8 +327,11 @@ public:
   //! Truncate the string length into `newSize`.
   ASMJIT_API Error truncate(size_t newSize) noexcept;
 
-  ASMJIT_API bool eq(const char* other, size_t size = SIZE_MAX) const noexcept;
-  inline bool eq(const String& other) const noexcept { return eq(other.data(), other.size()); }
+  [[nodiscard]]
+  ASMJIT_API bool equals(const char* other, size_t size = SIZE_MAX) const noexcept;
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool equals(const String& other) const noexcept { return equals(other.data(), other.size()); }
 
   //! \}
 
@@ -325,15 +343,18 @@ public:
   //! \note This is always called internally after an external buffer was released as it zeroes all bytes
   //! used by String's embedded storage.
   inline void _resetInternal() noexcept {
-    for (size_t i = 0; i < ASMJIT_ARRAY_SIZE(_raw.uptr); i++)
+    for (size_t i = 0; i < ASMJIT_ARRAY_SIZE(_raw.uptr); i++) {
       _raw.uptr[i] = 0;
+    }
   }
 
   inline void _setSize(size_t newSize) noexcept {
-    if (isLargeOrExternal())
+    if (isLargeOrExternal()) {
       _large.size = newSize;
-    else
+    }
+    else {
       _small.type = uint8_t(newSize);
+    }
   }
 
   //! \}
@@ -351,7 +372,7 @@ public:
   //! \name Construction & Destruction
   //! \{
 
-  inline StringTmp() noexcept {
+  ASMJIT_INLINE_NODEBUG StringTmp() noexcept {
     _resetToTemporary();
   }
 

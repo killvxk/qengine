@@ -1,5 +1,4 @@
-#include <winnt.h>
-#pragma region Header Guard
+﻿#pragma region Header Guard
 
 #ifndef DISASM_H
 #define DISASM_H
@@ -10,7 +9,10 @@
 
 #pragma region Windows
 
+#define NOMINMAX
+
 #include <windows.h>
+#include <winnt.h>
 
 #pragma endregion
 
@@ -56,11 +58,35 @@
 /* utilizing this class may render VM-based protection solutions un-usable */
 namespace qengine {
 
-	namespace qmorph{
+	namespace qmorph {
 
 		namespace qdisasm {
 
+#pragma region Enumerations / Structures
+
+
+			typedef struct interrupt_region {
+
+				c_void region_address;
+				std::uint32_t region_length;
+				std::uint32_t region_parent_section; // index of parent inside executable_sections vector
+			};
+
+			typedef struct executable_text_section {
+
+				PIMAGE_SECTION_HEADER section_header;
+				std::vector<interrupt_region> interrupt_mapping{};
+			};
+
 #pragma endregion
+
+#pragma endregion
+
+			inline imut bool (__regcall* interrupt_pdfn_callback)(c_void, imut std::size_t) noexcept = nullptr;
+
+			inline bool								is_interrupt_regions = false;
+
+			inline std::vector<interrupt_region>	interrupt_regions;
 
 			class qsection_assembler {
 
@@ -70,58 +96,27 @@ namespace qengine {
 
 #pragma endregion
 
-#pragma region Enumerations / Structures
-
-				enum instruction_permutations {
-
-					INT1 = 0xF1,
-					INT3 = 0xCC,
-					NOP = 0x90
-				};
-
-				typedef struct interrupt_permutator { // instruction length is always going to be 1 std::uint8_t so no need for additional field
-
-					c_void instruction_address;
-					std::uint8_t iterator_seed;
-				};
-
-				typedef struct interrupt_region {
-
-					c_void region_address;
-					std::uint32_t region_length;
-					std::uint32_t region_parent_section; // index of parent inside executable_sections vector
-					std::vector<interrupt_permutator> region_instructions{};
-				};
-
-				typedef struct executable_text_section {
-					
-					PIMAGE_SECTION_HEADER section_header;
-					std::vector<interrupt_region> interrupt_mapping{};
-				};
-
-#pragma endregion
-
 			private:
 
 #pragma region Globals
 
 #ifdef _WIN64
 
-				mut cs_mode mode = CS_MODE_64;
+				cs_mode mode = CS_MODE_64;
 
 #else
 
-				mut cs_mode mode = CS_MODE_32;
+				cs_mode mode = CS_MODE_32;
 
 #endif
 
-				mut cs_arch arch = cs_arch::CS_ARCH_X86;
-				mut csh handle;
-				mut std::uintptr_t base_address;
+				cs_arch arch = cs_arch::CS_ARCH_X86;
+				csh handle;
+				std::uintptr_t base_address;
 
-				mut std::vector<executable_text_section> executable_sections{};
-				mut std::vector<PIMAGE_SECTION_HEADER> pe_other_sections{};
-				mut std::vector<interrupt_region> pe_interrupt_regions{};
+				std::vector<executable_text_section> executable_sections{};
+				std::vector<PIMAGE_SECTION_HEADER> pe_other_sections{};
+				std::vector<interrupt_region> pe_interrupt_regions{};
 
 #pragma endregion
 
@@ -130,43 +125,40 @@ namespace qengine {
 				/* specify __regcall should the compiler choose to optimize the argument as a pointer (to fit register) */
 				__symbolic imut bool __regcall instruction_permutation(interrupt_region& region) nex {
 
-					static DWORD protection = NULL;
+					DWORD protection = NULL;
 
-					if (!VirtualProtect(region.region_address, region.region_length, PAGE_EXECUTE_READWRITE, &protection))
+					if (!virtualprotect_rtImp_inst(region.region_address, region.region_length, PAGE_EXECUTE_READWRITE, &protection))
 						return false;
 
-					c_void alloc_gen;
-					
-					if ( (alloc_gen = qgen::asm_generator::generate_assembly(region.region_length)) ) { // generate junk instructions to replace the padding
-					
-						memcpy(region.region_address, alloc_gen, region.region_length);
+					std::size_t alloc_gen;
 
-						free( alloc_gen );
-					}
-					
-					if (!VirtualProtect(region.region_address, region.region_length, protection, &protection))
+					if ((alloc_gen = qgen::asm_generator::generate_assembly(region.region_length))) // Generate Junk Instructions to Replace the Padding
+						accelmem::a_memcpy(region.region_address, qgen::insn_output_buffer, std::min(region.region_length, static_cast<std::uint32_t>(alloc_gen)));
+
+					if (!virtualprotect_rtImp_inst(region.region_address, region.region_length, protection, &protection))
 						return false;
 
 					// Securely Wipe Singleton
-					RtlZeroMemory(&protection, sizeof(DWORD));
+					VOLATILE_NULL(protection);
 
 					return true;
 				}
 
 				/* if you erase / randomize headers before calling this the function will fail and your program will crash */
 				__symbolic imut bool __stackcall analyze_executable_sections() noexcept {
-					
+
 					if (cs_open(arch, mode, &handle) != CS_ERR_OK) // initialize capstone with our target architecture using our handle
 						return false;
 
-					static DWORD protection = NULL; // used to set / get virtualprotect permissions for applicable memory pages
+					DWORD protection = NULL; // used to set / get virtualprotect_rtImp_inst permissions for applicable memory pages
 
 					for (auto& section : executable_sections) {
 
 						auto offset = reinterpret_cast<PBYTE>(base_address + section.section_header->VirtualAddress);
+
 						auto& maximum = section.section_header->SizeOfRawData;
 
-						if (!VirtualProtect(static_cast<c_void>(offset), maximum, PAGE_EXECUTE_READWRITE, &protection))
+						if (!virtualprotect_rtImp_inst(static_cast<c_void>(offset), maximum, PAGE_EXECUTE_READWRITE, &protection))
 							return false;
 
 						cs_insn* instructions;
@@ -175,14 +167,14 @@ namespace qengine {
 
 						for (std::size_t i = 0; i < instruction_count; ++i) {
 
-							const auto& instruction = instructions[i]; 
+							imut auto& instruction = instructions[i];
 
-							if (instruction.id == X86_INS_INT1 || instruction.id == X86_INS_INT3) {
+							if (instruction.id == X86_INS_INT3) {
 
 								interrupt_region region{};
 								region.region_address = reinterpret_cast<c_void>(instruction.address);
 								region.region_parent_section = i;
-								region.region_length = NULL;
+								region.region_length = 0x0u;
 
 								bool region_continuation = true;
 								PBYTE region_iterator = reinterpret_cast<PBYTE>(instruction.address);
@@ -192,41 +184,36 @@ namespace qengine {
 
 									region_iteration_instruction = *reinterpret_cast<PBYTE>(region_iterator);
 
-									if (region_iteration_instruction == instruction_permutations::INT3 || region_iteration_instruction == instruction_permutations::INT1) {
-
-										interrupt_permutator interrupt_instruction;
-										interrupt_instruction.instruction_address = static_cast<c_void>(region_iterator); // address / pointer to instruction
-										region.region_instructions.push_back(interrupt_instruction);
-
+									if (region_iteration_instruction == 0xCCu)
 										++region.region_length;
-
-									}
-									else {
-
+									else
 										region_continuation = false;
-									}
 
-									++region_iterator;
+									++region_iterator, ++i;
 
 								} while (region_continuation);
 
-								if (region.region_length > 1)
+								if (region.region_length > 1) {
+
+									if (!is_interrupt_regions)
+										interrupt_regions.push_back(region);
+
 									pe_interrupt_regions.push_back(region);
+								}
 							}
 
 						}
 
 						cs_free(instructions, instruction_count);
 
-						if (!VirtualProtect(static_cast<c_void>(offset), maximum, protection, &protection))
+						if (!virtualprotect_rtImp_inst(static_cast<c_void>(offset), maximum, protection, &protection))
 							return false;// this should not occur when rstoring page perms even if mid-execution, something is not right
-
 					}
 
 					// Securely Wipe Singleton
-					RtlZeroMemory(&protection, sizeof(DWORD));
+					VOLATILE_NULL(protection);
 
-					return true;
+					return is_interrupt_regions = true;
 				}
 
 				__symbolic imut bool __regcall morph_executable_sections(imut bool free_memory = true) noexcept {
@@ -234,53 +221,56 @@ namespace qengine {
 					if (!pe_interrupt_regions.size())
 						return false;
 
-					for (auto& region : pe_interrupt_regions)
+					for (auto& region : pe_interrupt_regions) {
+
 						instruction_permutation(region);
+
+						if (interrupt_pdfn_callback)
+							interrupt_pdfn_callback(region.region_address, region.region_length);
+					}
 
 					if (free_memory) {
 
-						for (auto& interrupt_mapping : pe_interrupt_regions) {
+						for (auto& interrupt_mapping : pe_interrupt_regions)
+							SECURE_ZERO_MEMORY(&interrupt_mapping, sizeof(interrupt_region));
 
-							for (auto& _interrupt_permutator : interrupt_mapping.region_instructions)
-								RtlZeroMemory(&_interrupt_permutator, sizeof(interrupt_permutator));
-
-							RtlZeroMemory(&interrupt_mapping, sizeof(interrupt_region));
-						}
 
 						pe_interrupt_regions.clear();
 					}
+
+					SECURE_ZERO_MEMORY(qgen::insn_output_buffer, sizeof(qgen::insn_output_buffer));
 
 					return true;
 				}
 
 #pragma region PE Header Manipulation
 
-				__symbolic imut bool __stackcall scramble_dos_header( imut bool null_header = false, imut bool erase_stub = true) noexcept {
+				__symbolic imut bool __stackcall scramble_dos_header(imut bool null_header = false, imut bool erase_stub = true) noexcept {
 
 #pragma region Locals Setup
 
-					static DWORD protection_old = NULL;
+					DWORD protection_old = 0x0u;
 
-					static noregister auto header_dos_ptr = reinterpret_cast<PIMAGE_DOS_HEADER>(base_address);
+					noregister auto header_dos_ptr = reinterpret_cast<PIMAGE_DOS_HEADER>(base_address);
 
 #pragma endregion
 
-					if (!VirtualProtect(reinterpret_cast<c_void>(base_address), header_dos_ptr->e_lfanew, PAGE_READWRITE, &protection_old))
+					if (!virtualprotect_rtImp_inst(reinterpret_cast<c_void>(base_address), header_dos_ptr->e_lfanew, PAGE_READWRITE, &protection_old))
 						return false;
 
-					if(null_header){
+					if (null_header) {
 
-								/* preserve e_lfanew && e_magic so that the exit() call will not throw an exception, for some reason windows checks both of these past it's RunPE exeution */
+						/* preserve e_lfanew && e_magic so that the exit() call will not throw an exception, for some reason windows checks both of these past it's RunPE exeution */
 						auto e_lfanew = reinterpret_cast<PIMAGE_DOS_HEADER>(base_address)->e_lfanew;
 						auto e_magic = reinterpret_cast<PIMAGE_DOS_HEADER>(base_address)->e_magic;
 
-						RtlZeroMemory(reinterpret_cast<c_void>(base_address + sizeof(IMAGE_DOS_HEADER)), e_lfanew - sizeof(IMAGE_DOS_HEADER)); // e_lfanew - 1 will also erase the dos stub (debatable how useful this will generally be as it is generally unused / same across any modern executable)
+						SECURE_ZERO_MEMORY(reinterpret_cast<c_void>(base_address + sizeof(IMAGE_DOS_HEADER)), e_lfanew - sizeof(IMAGE_DOS_HEADER)); // e_lfanew - 1 will also erase the dos stub (debatable how useful this will generally be as it is generally unused / same across any modern executable)
 
 						reinterpret_cast<PIMAGE_DOS_HEADER>(base_address)->e_lfanew = e_lfanew;
 						reinterpret_cast<PIMAGE_DOS_HEADER>(base_address)->e_magic = e_magic;
 					}
-					else{
-						
+					else {
+
 						srand(static_cast<std::uint32_t>(std::chrono::high_resolution_clock().now().time_since_epoch().count()));
 
 						/* e_magic and e_lfanew shall be preserved as altering these can cause crashes in certain situations, the below fields are not used pass RunPE execution  */
@@ -301,52 +291,53 @@ namespace qengine {
 					}
 
 					if (erase_stub)
-						RtlZeroMemory(reinterpret_cast<c_void>(base_address + sizeof(IMAGE_DOS_HEADER)), (header_dos_ptr->e_lfanew - sizeof(IMAGE_DOS_HEADER))); /* remove the DOS stub */
+						SECURE_ZERO_MEMORY(reinterpret_cast<c_void>(base_address + sizeof(IMAGE_DOS_HEADER)), (header_dos_ptr->e_lfanew - sizeof(IMAGE_DOS_HEADER))); /* remove the DOS stub */
 
-					if (!VirtualProtect(reinterpret_cast<c_void>(base_address), header_dos_ptr->e_lfanew, PAGE_READONLY, &protection_old))
+					if (!virtualprotect_rtImp_inst(reinterpret_cast<c_void>(base_address), header_dos_ptr->e_lfanew, PAGE_READONLY, &protection_old))
 						return false; // this shouldn't happen when restoring perms and if it does something is terribly wrong
+
+					VOLATILE_NULL(protection_old);
 
 					return true;
 				}
 
-				__symbolic bool __stackcall scramble_nt_header(bool null_headers = false) noexcept {
+				__symbolic imut bool __stackcall scramble_nt_header(imut bool null_headers = false) noexcept {
 
 #pragma region Locals Setup
 
-					static DWORD protection = NULL;
+					DWORD protection = 0x0u;
 
-					static noregister auto header_dos_ptr = reinterpret_cast<PIMAGE_DOS_HEADER>(base_address);
-					static noregister auto header_nt_ptr = reinterpret_cast<PIMAGE_NT_HEADERS>(base_address + header_dos_ptr->e_lfanew);
+					noregister auto header_dos_ptr = reinterpret_cast<PIMAGE_DOS_HEADER>(base_address);
+					noregister auto header_nt_ptr = reinterpret_cast<PIMAGE_NT_HEADERS>(base_address + header_dos_ptr->e_lfanew);
 
 #pragma endregion
 
-					if (!VirtualProtect(reinterpret_cast<c_void>(base_address + header_dos_ptr->e_lfanew), sizeof(IMAGE_NT_HEADERS), PAGE_READWRITE, &protection))
+					if (!virtualprotect_rtImp_inst(reinterpret_cast<c_void>(base_address + header_dos_ptr->e_lfanew), sizeof(IMAGE_NT_HEADERS), PAGE_READWRITE, &protection))
 						return false;
 
-					if(null_headers){
+					if (null_headers) {
 
 						/* Windows PE Loader fails for many executables when these fields are modified, we save them and write them back after wiping the rest of the header */
 						auto signature = header_nt_ptr->Signature;
 						auto magic = header_nt_ptr->OptionalHeader.Magic;
 
-						RtlZeroMemory(reinterpret_cast<c_void>(base_address + header_dos_ptr->e_lfanew), sizeof(IMAGE_NT_HEADERS));
+						SECURE_ZERO_MEMORY(reinterpret_cast<c_void>(base_address + header_dos_ptr->e_lfanew), sizeof(IMAGE_NT_HEADERS));
 
 						/* restore Signature + Magic fields */
 						header_nt_ptr->Signature = std::move(signature);
 						header_nt_ptr->OptionalHeader.Magic = std::move(magic);
 					}
-					else{
+					else {
 
 						/* signature shall be preserved as overwriting this can cause runtime exceptions w/ windows default PE Loader */
 
 #pragma region PE32 Header
 
 						/* override PE32 header */
-						header_nt_ptr->FileHeader.Characteristics = static_cast<WORD>   ( __RAND__(UINT16_MAX, 0) );
+						header_nt_ptr->FileHeader.Characteristics = static_cast<WORD>   (__RAND__(UINT16_MAX, 0));
 						header_nt_ptr->FileHeader.Machine = static_cast<WORD>   (__RAND__(UINT16_MAX, 0));
 						header_nt_ptr->FileHeader.NumberOfSymbols = static_cast<DWORD>  (__RAND__(UINT32_MAX, 0));
 						header_nt_ptr->FileHeader.PointerToSymbolTable = static_cast<DWORD>  (__RAND__(UINT32_MAX, 0));
-						header_nt_ptr->FileHeader.NumberOfSections = static_cast<WORD>	(__RAND__(UINT16_MAX, 0));
 						header_nt_ptr->FileHeader.SizeOfOptionalHeader = static_cast<WORD>   (__RAND__(UINT16_MAX, 0));
 						header_nt_ptr->FileHeader.TimeDateStamp = static_cast<DWORD>  (__RAND__(UINT32_MAX, 0));
 
@@ -396,93 +387,102 @@ namespace qengine {
 						header_nt_ptr->OptionalHeader.Win32VersionValue = static_cast<DWORD>  (__RAND__(UINT32_MAX, 0));
 
 #pragma endregion
+
 					}
 
-					if (!VirtualProtect(reinterpret_cast<c_void>(base_address + header_dos_ptr->e_lfanew), sizeof(IMAGE_NT_HEADERS), PAGE_READONLY, &protection))
+					if (!virtualprotect_rtImp_inst(reinterpret_cast<c_void>(base_address + header_dos_ptr->e_lfanew), sizeof(IMAGE_NT_HEADERS), PAGE_READONLY, &protection))
 						return false;
 
 					// Securely Wipe Singletons
-					RtlZeroMemory(&protection, sizeof(DWORD));
-					RtlZeroMemory(static_cast<c_void>(volatile_cast<PIMAGE_DOS_HEADER*>(&header_dos_ptr)), sizeof(c_void));
-					RtlZeroMemory(static_cast<c_void>(volatile_cast<PIMAGE_NT_HEADERS*>(&header_nt_ptr)), sizeof(c_void));
+					VOLATILE_NULL(protection);
+					SECURE_ZERO_MEMORY(static_cast<c_void>(volatile_cast<PIMAGE_DOS_HEADER*>(&header_dos_ptr)), sizeof(c_void));
+					SECURE_ZERO_MEMORY(static_cast<c_void>(volatile_cast<PIMAGE_NT_HEADERS*>(&header_nt_ptr)), sizeof(c_void));
 
 					return true;
 				}
 
 				__inlineable imut bool __stackcall wipe_basereloc() nex {
 
-					static DWORD protection = NULL;
+					DWORD protection = 0x0u;
 
-					static volatile PIMAGE_DOS_HEADER header_dos = static_cast<PIMAGE_DOS_HEADER>(reinterpret_cast<c_void>(base_address));
-					static volatile PIMAGE_NT_HEADERS header_nt = static_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<c_void>(base_address + header_dos->e_lfanew));
+					noregister PIMAGE_DOS_HEADER header_dos = static_cast<PIMAGE_DOS_HEADER>(reinterpret_cast<c_void>(base_address));
+					noregister PIMAGE_NT_HEADERS header_nt = static_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<c_void>(base_address + header_dos->e_lfanew));
 
-					static volatile PIMAGE_DATA_DIRECTORY basereloc_section = &header_nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+					noregister PIMAGE_DATA_DIRECTORY basereloc_section = &header_nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
 
-					static MODULEINFO main_module_information{};
+					MODULEINFO main_module_information{};
 
-					if (!GetModuleInformation(GetCurrentProcess(), NULL, &main_module_information, sizeof(MODULEINFO)))
+					if (!GetModuleInformation(GetCurrentProcess(), 0x0u, &main_module_information, sizeof(MODULEINFO)))
 						return false;
 
 					// Check if the PE has relocation table generated, and if it was loaded into memory
 					// ( If windows PE loader allocates at preffered base, relocations shouldn't be loaded into mapped image )
-					if (basereloc_section->Size && (header_nt->OptionalHeader.ImageBase != reinterpret_cast<std::uintptr_t>(main_module_information.lpBaseOfDll)) ) {
+					if (basereloc_section->Size && (header_nt->OptionalHeader.ImageBase != reinterpret_cast<std::uintptr_t>(main_module_information.lpBaseOfDll))) {
 
-						if (!VirtualProtect(reinterpret_cast<c_void>(base_address + basereloc_section->VirtualAddress), basereloc_section->Size, PAGE_READWRITE, &protection))
+						if (!virtualprotect_rtImp_inst(reinterpret_cast<c_void>(base_address + basereloc_section->VirtualAddress), basereloc_section->Size, PAGE_READWRITE, &protection))
 							return false;
 
-						RtlZeroMemory(reinterpret_cast<c_void>(base_address + basereloc_section->VirtualAddress), basereloc_section->Size);
+						SECURE_ZERO_MEMORY(reinterpret_cast<c_void>(base_address + basereloc_section->VirtualAddress), basereloc_section->Size);
 
-						if (!VirtualProtect(reinterpret_cast<c_void>(base_address + basereloc_section->VirtualAddress), basereloc_section->Size, protection, &protection))
+						if (!virtualprotect_rtImp_inst(reinterpret_cast<c_void>(base_address + basereloc_section->VirtualAddress), basereloc_section->Size, protection, &protection))
 							return false;
 					}
 
 					// Wipe basereloc DataDirectory entry 
-					if (!VirtualProtect(basereloc_section, sizeof(IMAGE_DATA_DIRECTORY), PAGE_READWRITE, &protection))
+					if (!virtualprotect_rtImp_inst(basereloc_section, sizeof(IMAGE_DATA_DIRECTORY), PAGE_READWRITE, &protection))
 						return false;
 
-					RtlZeroMemory(basereloc_section, sizeof(IMAGE_DATA_DIRECTORY));
+					SECURE_ZERO_MEMORY(basereloc_section, sizeof(IMAGE_DATA_DIRECTORY));
 
-					if (!VirtualProtect(basereloc_section, sizeof(IMAGE_DATA_DIRECTORY), protection, &protection))
+					if (!virtualprotect_rtImp_inst(basereloc_section, sizeof(IMAGE_DATA_DIRECTORY), protection, &protection))
 						return false;
 
 					// Securely Wipe Singletons
-					RtlZeroMemory(&protection, sizeof(DWORD));
-					RtlZeroMemory(static_cast<c_void>(volatile_cast<PIMAGE_DOS_HEADER*>(&header_dos)), sizeof(c_void));
-					RtlZeroMemory(static_cast<c_void>(volatile_cast<PIMAGE_NT_HEADERS*>(&header_nt)), sizeof(c_void));
-					RtlZeroMemory(static_cast<c_void>(volatile_cast<PIMAGE_DATA_DIRECTORY*>(&basereloc_section)), sizeof(c_void));
-					RtlZeroMemory(&main_module_information, sizeof(MODULEINFO));
+					VOLATILE_NULL(protection);
+					SECURE_ZERO_MEMORY(static_cast<c_void>(volatile_cast<PIMAGE_DOS_HEADER*>(&header_dos)), sizeof(c_void));
+					SECURE_ZERO_MEMORY(static_cast<c_void>(volatile_cast<PIMAGE_NT_HEADERS*>(&header_nt)), sizeof(c_void));
+					SECURE_ZERO_MEMORY(static_cast<c_void>(volatile_cast<PIMAGE_DATA_DIRECTORY*>(&basereloc_section)), sizeof(c_void));
+					SECURE_ZERO_MEMORY(&main_module_information, sizeof(MODULEINFO));
 
 					return true;
 				}
 
 				__symbolic imut bool __stackcall wipe_idata_ilt() nex {
 
-					static DWORD protection = NULL;
+					DWORD protection = 0x0u;
 
-					static volatile PIMAGE_DOS_HEADER header_dos = reinterpret_cast<PIMAGE_DOS_HEADER>(reinterpret_cast<c_void>(base_address));
-					static volatile PIMAGE_NT_HEADERS header_nt = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<c_void>(base_address + header_dos->e_lfanew));
+					noregister PIMAGE_DOS_HEADER header_dos = reinterpret_cast<PIMAGE_DOS_HEADER>(reinterpret_cast<c_void>(base_address));
+					noregister PIMAGE_NT_HEADERS header_nt = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<c_void>(base_address + header_dos->e_lfanew));
 
-					static volatile PIMAGE_DATA_DIRECTORY import_directory = &header_nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+					noregister PIMAGE_DATA_DIRECTORY import_directory = &header_nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
 
-					if(import_directory->Size) {
+					if (import_directory->Size) {
 
-						if (!VirtualProtect(reinterpret_cast<c_void>(base_address + import_directory->VirtualAddress),import_directory->Size, PAGE_READWRITE, &protection))
+						if (!virtualprotect_rtImp_inst(reinterpret_cast<c_void>(base_address + import_directory->VirtualAddress), import_directory->Size, PAGE_READWRITE, &protection))
 							return false;
 
-						static volatile PIMAGE_THUNK_DATA ilt_pointer = reinterpret_cast<PIMAGE_THUNK_DATA>(
+						noregister PIMAGE_THUNK_DATA ilt_pointer = reinterpret_cast<PIMAGE_THUNK_DATA>(
 							base_address + reinterpret_cast<PIMAGE_IMPORT_DESCRIPTOR>(base_address + import_directory->VirtualAddress)->OriginalFirstThunk
-						);
+							);
 
 						// Wipe all ILT entries
-						for (; ilt_pointer->u1.Function; ++ilt_pointer)
-							RtlZeroMemory(ilt_pointer, sizeof(IMAGE_THUNK_DATA));
+						for (; ilt_pointer->u1.Function; ++ilt_pointer) {
+
+							if (!virtualprotect_rtImp_inst(ilt_pointer, sizeof(IMAGE_THUNK_DATA), PAGE_READWRITE, nullptr))
+								return false;
+
+							SECURE_ZERO_MEMORY(ilt_pointer, sizeof(IMAGE_THUNK_DATA));
+
+							if (!virtualprotect_rtImp_inst(ilt_pointer, sizeof(IMAGE_THUNK_DATA), PAGE_READONLY, nullptr))
+								return false;
+						}
 
 						// Backup contents of the IAT before wiping .idata as this is the only important information post-mapping in this section
 						std::vector<IMAGE_THUNK_DATA> iat_backup;
 
-						static volatile PIMAGE_THUNK_DATA iat_pointer = reinterpret_cast<PIMAGE_THUNK_DATA>(
+						noregister PIMAGE_THUNK_DATA iat_pointer = reinterpret_cast<PIMAGE_THUNK_DATA>(
 							base_address + reinterpret_cast<PIMAGE_IMPORT_DESCRIPTOR>(base_address + import_directory->VirtualAddress)->FirstThunk
-						);
+							);
 
 						DWORD import_protection = protection;
 
@@ -490,19 +490,19 @@ namespace qengine {
 
 							iat_backup.push_back(*iat_pointer);
 
-							// The IAT should be inside of the import section, but write access errors seem to occur here even after the initial VirtualProtect() call to the entire .idata section
+							// The IAT should be inside of the import section, but write access errors seem to occur here even after the initial virtualprotect_rtImp_inst() call to the entire .idata section
 							// So we call virtual protect per each write to ensure proper memory access
-							if (!VirtualProtect(iat_pointer, sizeof(IMAGE_THUNK_DATA), PAGE_READWRITE, &protection))
+							if (!virtualprotect_rtImp_inst(iat_pointer, sizeof(IMAGE_THUNK_DATA), PAGE_READWRITE, &protection))
 								return false;
 						}
 
 						// Reset IAT pointer to beginning
 						iat_pointer = reinterpret_cast<PIMAGE_THUNK_DATA>(
 							base_address + reinterpret_cast<PIMAGE_IMPORT_DESCRIPTOR>(base_address + import_directory->VirtualAddress)->FirstThunk
-						);
+							);
 
 						// Wipe the entire import(.idata) section itself 
-						RtlZeroMemory(
+						SECURE_ZERO_MEMORY(
 							reinterpret_cast<c_void>(base_address + import_directory->VirtualAddress),
 							import_directory->Size
 						);
@@ -512,63 +512,66 @@ namespace qengine {
 							*iat_pointer = iat_backup[i];
 
 						// Restore memory permissions for imort section
-						if (!VirtualProtect(reinterpret_cast<c_void>(base_address + import_directory->VirtualAddress), import_directory->Size, std::move(import_protection), &protection))
+						if (!virtualprotect_rtImp_inst(reinterpret_cast<c_void>(base_address + import_directory->VirtualAddress), import_directory->Size, std::move(import_protection), &protection))
 							return false;
 
 						// Securely wipe nested Singletons / Locals
-						RtlZeroMemory(static_cast<c_void>(volatile_cast<PIMAGE_THUNK_DATA*>(&iat_pointer)), sizeof(c_void));
-						RtlZeroMemory(static_cast<c_void>(&import_protection), sizeof(DWORD));
+						SECURE_ZERO_MEMORY(static_cast<c_void>(volatile_cast<PIMAGE_THUNK_DATA*>(&iat_pointer)), sizeof(c_void));
+						SECURE_ZERO_MEMORY(static_cast<c_void>(&import_protection), sizeof(DWORD));
 
 						for (auto& iat_entry : iat_backup)
-							RtlZeroMemory(&iat_entry, sizeof(IMAGE_THUNK_DATA));
+							SECURE_ZERO_MEMORY(&iat_entry, sizeof(IMAGE_THUNK_DATA));
 
 						iat_backup.clear();
 					}
 
 					// Grant write access to the headers pointing to the IAT / Import Section / ILT etc. 
-					if (!VirtualProtect(reinterpret_cast<c_void>(&header_nt->OptionalHeader.DataDirectory[0]), sizeof(IMAGE_DATA_DIRECTORY) * 16, PAGE_READWRITE, &protection))
+					if (!virtualprotect_rtImp_inst(reinterpret_cast<c_void>(&header_nt->OptionalHeader.DataDirectory[0]), sizeof(IMAGE_DATA_DIRECTORY) * 16, PAGE_READWRITE, &protection))
 						return false;
 
 					// Wipe import section descriptor
-					RtlZeroMemory(&header_nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT], sizeof(IMAGE_DATA_DIRECTORY));
+					SECURE_ZERO_MEMORY(&header_nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT], sizeof(IMAGE_DATA_DIRECTORY));
 					// Wipe IAT descriptor
-					RtlZeroMemory(&header_nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IAT], sizeof(IMAGE_DATA_DIRECTORY));
+					SECURE_ZERO_MEMORY(&header_nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IAT], sizeof(IMAGE_DATA_DIRECTORY));
 
-					if (!VirtualProtect(reinterpret_cast<c_void>(&header_nt->OptionalHeader.DataDirectory[0]), sizeof(IMAGE_DATA_DIRECTORY) * 16, protection, &protection))
+					if (!virtualprotect_rtImp_inst(reinterpret_cast<c_void>(&header_nt->OptionalHeader.DataDirectory[0]), sizeof(IMAGE_DATA_DIRECTORY) * 16, protection, &protection))
 						return false;
 
 					// Securely wipe Locals / Singletons
-					RtlZeroMemory(&protection, sizeof(DWORD));
-					RtlZeroMemory(static_cast<c_void>(volatile_cast<PIMAGE_DOS_HEADER*>(&header_dos)), sizeof(c_void));
-					RtlZeroMemory(static_cast<c_void>(volatile_cast<PIMAGE_NT_HEADERS*>(&header_nt)), sizeof(c_void));
-					RtlZeroMemory(static_cast<c_void>(volatile_cast<PIMAGE_DATA_DIRECTORY*>(&import_directory)), sizeof(c_void));
+					VOLATILE_NULL(protection);
+					SECURE_ZERO_MEMORY(static_cast<c_void>(volatile_cast<PIMAGE_DOS_HEADER*>(&header_dos)), sizeof(c_void));
+					SECURE_ZERO_MEMORY(static_cast<c_void>(volatile_cast<PIMAGE_NT_HEADERS*>(&header_nt)), sizeof(c_void));
+					SECURE_ZERO_MEMORY(static_cast<c_void>(volatile_cast<PIMAGE_DATA_DIRECTORY*>(&import_directory)), sizeof(c_void));
 
 					return true;
-				} 
+				}
 
+				/*
+					This function WILL Corrupt pdfn's ability to Operate, ONLY use this if NOT USING PDFN
+				*/
 				__inlineable bool __stackcall wipe_section_headers() noexcept {
 
 #pragma region Locals Setup
 
-					static DWORD protection = NULL;
+					DWORD protection = 0x0u;
 
-					static volatile PIMAGE_DOS_HEADER header_dos = reinterpret_cast<PIMAGE_DOS_HEADER>(reinterpret_cast<c_void>(base_address));
-					static volatile PIMAGE_NT_HEADERS header_nt = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<c_void>(base_address + header_dos->e_lfanew));
+					noregister PIMAGE_DOS_HEADER header_dos = reinterpret_cast<PIMAGE_DOS_HEADER>(reinterpret_cast<c_void>(base_address));
+					noregister PIMAGE_NT_HEADERS header_nt = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<c_void>(base_address + header_dos->e_lfanew));
 
 #pragma endregion
 
 #pragma region Wipe Section Descriptors
 
-					static noregister PIMAGE_SECTION_HEADER section_ptr = IMAGE_FIRST_SECTION(header_nt);
+					noregister PIMAGE_SECTION_HEADER section_ptr = IMAGE_FIRST_SECTION(header_nt);
 
 					for (std::size_t i = 0; i < header_nt->FileHeader.NumberOfSections; ++i, ++section_ptr) {
 
-						if (!VirtualProtect(static_cast<c_void>(section_ptr), sizeof(IMAGE_SECTION_HEADER), PAGE_READWRITE, &protection))
+						if (!virtualprotect_rtImp_inst(static_cast<c_void>(section_ptr), sizeof(IMAGE_SECTION_HEADER), PAGE_READWRITE, &protection))
 							return false;
 
-						RtlZeroMemory(static_cast<c_void>(section_ptr), sizeof(IMAGE_SECTION_HEADER));
+						SECURE_ZERO_MEMORY(static_cast<c_void>(section_ptr), sizeof(IMAGE_SECTION_HEADER));
 
-						if (!VirtualProtect(static_cast<c_void>(section_ptr), sizeof(IMAGE_SECTION_HEADER), protection, &protection))
+						if (!virtualprotect_rtImp_inst(static_cast<c_void>(section_ptr), sizeof(IMAGE_SECTION_HEADER), protection, &protection))
 							return false;
 
 					}
@@ -576,23 +579,20 @@ namespace qengine {
 #pragma endregion
 
 					// Securely Wipe Singletons
-					RtlZeroMemory(&protection, sizeof(DWORD));
-					RtlZeroMemory(static_cast<c_void>(volatile_cast<PIMAGE_DOS_HEADER*>(&header_dos)), sizeof(c_void));
-					RtlZeroMemory(static_cast<c_void>(volatile_cast<PIMAGE_NT_HEADERS*>(&header_nt)), sizeof(c_void));
-					RtlZeroMemory(static_cast<c_void>(volatile_cast<PIMAGE_SECTION_HEADER*>(&section_ptr)), sizeof(c_void));
+					VOLATILE_NULL(protection);
+					SECURE_ZERO_MEMORY(static_cast<c_void>(volatile_cast<PIMAGE_DOS_HEADER*>(&header_dos)), sizeof(c_void));
+					SECURE_ZERO_MEMORY(static_cast<c_void>(volatile_cast<PIMAGE_NT_HEADERS*>(&header_nt)), sizeof(c_void));
+					SECURE_ZERO_MEMORY(static_cast<c_void>(volatile_cast<PIMAGE_SECTION_HEADER*>(&section_ptr)), sizeof(c_void));
 
 					return true;
 				}
 
 				__symbolic void __stackcall parse_main_module_headers() noexcept {
 
-					base_address = reinterpret_cast<std::uintptr_t>(GetModuleHandle(NULL));
-
-					static noregister PIMAGE_DOS_HEADER header_dos = reinterpret_cast<PIMAGE_DOS_HEADER>(reinterpret_cast<c_void>(base_address));
-
-					static noregister PIMAGE_NT_HEADERS headers_nt = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<c_void>(base_address + header_dos->e_lfanew));
-
-					static noregister auto section_ptr = IMAGE_FIRST_SECTION(headers_nt);
+					base_address = reinterpret_cast<std::uintptr_t>(GetModuleHandle(nullptr));
+					noregister PIMAGE_DOS_HEADER header_dos = reinterpret_cast<PIMAGE_DOS_HEADER>(reinterpret_cast<c_void>(base_address));
+					noregister PIMAGE_NT_HEADERS headers_nt = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<c_void>(base_address + header_dos->e_lfanew));
+					noregister auto section_ptr = IMAGE_FIRST_SECTION(headers_nt);
 
 					for (std::size_t i = 0; i < headers_nt->FileHeader.NumberOfSections; ++i, ++section_ptr) {
 
@@ -636,39 +636,36 @@ namespace qengine {
 
 					if (handle)
 						cs_close(&handle);
-
-					RtlZeroMemory(&mode, sizeof(cs_mode));
-					RtlZeroMemory(&arch, sizeof(cs_arch));
-					RtlZeroMemory(&base_address, sizeof(std::uintptr_t));
+					VOLATILE_NULL(mode);
+					VOLATILE_NULL(arch);
+					VOLATILE_NULL(base_address);
 
 					for (auto& executable_section : executable_sections) {
 
-						for (auto& interrupt_mapping : executable_section.interrupt_mapping) {
+						for (auto& interrupt_mapping : executable_section.interrupt_mapping)
+							SECURE_ZERO_MEMORY(&interrupt_mapping, sizeof(interrupt_region));
 
-							for (auto& _interrupt_permutator : interrupt_mapping.region_instructions)
-								RtlZeroMemory(&_interrupt_permutator, sizeof(interrupt_permutator));
-
-							RtlZeroMemory(&interrupt_mapping, sizeof(interrupt_region));
-						}
-
-						RtlZeroMemory(&executable_section, sizeof(executable_text_section));
+						SECURE_ZERO_MEMORY(&executable_section, sizeof(executable_text_section));
 					}
 
 					for (auto& pscn_header : pe_other_sections)
-						RtlZeroMemory(static_cast<c_void>(&pscn_header), sizeof(c_void));
+						SECURE_ZERO_MEMORY(static_cast<c_void>(&pscn_header), sizeof(c_void));
 
-					for (auto& interrupt_mapping : pe_interrupt_regions) {
-
-						for (auto& _interrupt_permutator : interrupt_mapping.region_instructions)
-							RtlZeroMemory(&_interrupt_permutator, sizeof(interrupt_permutator));
-
-						RtlZeroMemory(&interrupt_mapping, sizeof(interrupt_region));
-					}
+					for (auto& interrupt_mapping : pe_interrupt_regions)
+						SECURE_ZERO_MEMORY(&interrupt_mapping, sizeof(interrupt_region));
 				}
 
 #pragma endregion
 
 			};
+
+			static inline std::vector<interrupt_region>& interrupt_mappings() noexcept {
+
+				if (!is_interrupt_regions)
+					qsection_assembler().analyze_executable_sections();
+
+				return interrupt_regions;
+			}
 		}
 	}
 }

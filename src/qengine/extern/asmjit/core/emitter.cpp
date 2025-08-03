@@ -1,6 +1,6 @@
 // This file is part of AsmJit project <https://asmjit.com>
 //
-// See asmjit.h or LICENSE.md for license and copyright information
+// See <asmjit/core.h> or LICENSE.md for license and copyright information
 // SPDX-License-Identifier: Zlib
 
 #include "../core/api-build_p.h"
@@ -52,17 +52,21 @@ static ASMJIT_NOINLINE void BaseEmitter_updateForcedOptions(BaseEmitter* self) n
     hasDiagnosticOptions = self->hasDiagnosticOption(DiagnosticOptions::kValidateIntermediate);
   }
 
-  if (emitComments)
+  if (emitComments) {
     self->_addEmitterFlags(EmitterFlags::kLogComments);
-  else
+  }
+  else {
     self->_clearEmitterFlags(EmitterFlags::kLogComments);
+  }
 
   // The reserved option tells emitter (Assembler/Builder/Compiler) that there may be either a border
   // case (CodeHolder not attached, for example) or that logging or validation is required.
-  if (self->_code == nullptr || self->_logger || hasDiagnosticOptions)
+  if (self->_code == nullptr || self->_logger || hasDiagnosticOptions) {
     self->_forcedInstOptions |= InstOptions::kReserved;
-  else
+  }
+  else {
     self->_forcedInstOptions &= ~InstOptions::kReserved;
+  }
 }
 
 // BaseEmitter - Diagnostic Options
@@ -90,8 +94,9 @@ void BaseEmitter::setLogger(Logger* logger) noexcept {
   else {
     _logger = nullptr;
     _clearEmitterFlags(EmitterFlags::kOwnLogger);
-    if (_code)
+    if (_code) {
       _logger = _code->logger();
+    }
   }
   BaseEmitter_updateForcedOptions(this);
 #else
@@ -110,26 +115,57 @@ void BaseEmitter::setErrorHandler(ErrorHandler* errorHandler) noexcept {
   else {
     _errorHandler = nullptr;
     _clearEmitterFlags(EmitterFlags::kOwnErrorHandler);
-    if (_code)
+    if (_code) {
       _errorHandler = _code->errorHandler();
+    }
   }
 }
 
-Error BaseEmitter::reportError(Error err, const char* message) {
+Error BaseEmitter::_reportError(Error err, const char* message) {
+  ASMJIT_ASSERT(err != kErrorOk);
+
   ErrorHandler* eh = _errorHandler;
   if (eh) {
-    if (!message)
+    if (!message) {
       message = DebugUtils::errorAsString(err);
+    }
     eh->handleError(err, message, this);
   }
+
   return err;
+}
+
+// BaseEmitter - Sections
+// ======================
+
+// [[pure virtual]]
+Error BaseEmitter::section(Section* section) {
+  DebugUtils::unused(section);
+  return DebugUtils::errored(kErrorInvalidState);
 }
 
 // BaseEmitter - Labels
 // ====================
 
+// [[pure virtual]]
+Label BaseEmitter::newLabel() {
+  return Label(Globals::kInvalidId);
+}
+
+// [[pure virtual]]
+Label BaseEmitter::newNamedLabel(const char* name, size_t nameSize, LabelType type, uint32_t parentId) {
+  DebugUtils::unused(name, nameSize, type, parentId);
+  return Label(Globals::kInvalidId);
+}
+
 Label BaseEmitter::labelByName(const char* name, size_t nameSize, uint32_t parentId) noexcept {
   return Label(_code ? _code->labelIdByName(name, nameSize, parentId) : Globals::kInvalidId);
+}
+
+// [[pure virtual]]
+Error BaseEmitter::bind(const Label& label) {
+  DebugUtils::unused(label);
+  return DebugUtils::errored(kErrorInvalidState);
 }
 
 bool BaseEmitter::isLabelValid(uint32_t labelId) const noexcept {
@@ -170,6 +206,12 @@ Error BaseEmitter::_emitI(InstId instId, const Operand_& o0, const Operand_& o1,
 Error BaseEmitter::_emitI(InstId instId, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_& o3, const Operand_& o4, const Operand_& o5) {
   Operand_ opExt[3] = { o3, o4, o5 };
   return _emit(instId, o0, o1, o2, opExt);
+}
+
+// [[pure virtual]]
+Error BaseEmitter::_emit(InstId instId, const Operand_& o0, const Operand_& o1, const Operand_& o2, const Operand_* oExt) {
+  DebugUtils::unused(instId, o0, o1, o2, oExt);
+  return DebugUtils::errored(kErrorInvalidState);
 }
 
 Error BaseEmitter::_emitOpArray(InstId instId, const Operand_* operands, size_t opCount) {
@@ -233,13 +275,62 @@ Error BaseEmitter::emitArgsAssignment(const FuncFrame& frame, const FuncArgsAssi
   return _funcs.emitArgsAssignment(this, frame, args);
 }
 
+// BaseEmitter - Align
+// ===================
+
+// [[pure virtual]]
+Error BaseEmitter::align(AlignMode alignMode, uint32_t alignment) {
+  DebugUtils::unused(alignMode, alignment);
+  return DebugUtils::errored(kErrorInvalidState);
+}
+
+// BaseEmitter - Embed
+// ===================
+
+// [[pure virtual]]
+Error BaseEmitter::embed(const void* data, size_t dataSize) {
+  DebugUtils::unused(data, dataSize);
+  return DebugUtils::errored(kErrorInvalidState);
+}
+
+// [[pure virtual]]
+Error BaseEmitter::embedDataArray(TypeId typeId, const void* data, size_t itemCount, size_t repeatCount) {
+  DebugUtils::unused(typeId, data, itemCount, repeatCount);
+  return DebugUtils::errored(kErrorInvalidState);
+}
+
+// [[pure virtual]]
+Error BaseEmitter::embedConstPool(const Label& label, const ConstPool& pool) {
+  DebugUtils::unused(label, pool);
+  return DebugUtils::errored(kErrorInvalidState);
+}
+
+// [[pure virtual]]
+Error BaseEmitter::embedLabel(const Label& label, size_t dataSize) {
+  DebugUtils::unused(label, dataSize);
+  return DebugUtils::errored(kErrorInvalidState);
+}
+
+// [[pure virtual]]
+Error BaseEmitter::embedLabelDelta(const Label& label, const Label& base, size_t dataSize) {
+  DebugUtils::unused(label, base, dataSize);
+  return DebugUtils::errored(kErrorInvalidState);
+}
+
 // BaseEmitter - Comment
 // =====================
 
+// [[pure virtual]]
+Error BaseEmitter::comment(const char* data, size_t size) {
+  DebugUtils::unused(data, size);
+  return DebugUtils::errored(kErrorInvalidState);
+}
+
 Error BaseEmitter::commentf(const char* fmt, ...) {
   if (!hasEmitterFlag(EmitterFlags::kLogComments)) {
-    if (!hasEmitterFlag(EmitterFlags::kAttached))
+    if (!hasEmitterFlag(EmitterFlags::kAttached)) {
       return reportError(DebugUtils::errored(kErrorNotInitialized));
+    }
     return kErrorOk;
   }
 
@@ -261,8 +352,9 @@ Error BaseEmitter::commentf(const char* fmt, ...) {
 
 Error BaseEmitter::commentv(const char* fmt, va_list ap) {
   if (!hasEmitterFlag(EmitterFlags::kLogComments)) {
-    if (!hasEmitterFlag(EmitterFlags::kAttached))
+    if (!hasEmitterFlag(EmitterFlags::kAttached)) {
       return reportError(DebugUtils::errored(kErrorNotInitialized));
+    }
     return kErrorOk;
   }
 
@@ -281,29 +373,34 @@ Error BaseEmitter::commentv(const char* fmt, va_list ap) {
 // BaseEmitter - Events
 // ====================
 
-Error BaseEmitter::onAttach(CodeHolder* code) noexcept {
-  _code = code;
-  _environment = code->environment();
+Error BaseEmitter::onAttach(CodeHolder& code) noexcept {
+  _code = &code;
+  _environment = code.environment();
   _addEmitterFlags(EmitterFlags::kAttached);
 
-  const ArchTraits& archTraits = ArchTraits::byArch(code->arch());
-  RegType nativeRegType = Environment::is32Bit(code->arch()) ? RegType::kGp32 : RegType::kGp64;
-  _gpSignature = archTraits.regTypeToSignature(nativeRegType);
+  _gpSignature.setBits(
+    Environment::is32Bit(code.arch())
+      ? RegTraits<RegType::kGp32>::kSignature
+      : RegTraits<RegType::kGp64>::kSignature
+  );
 
   onSettingsUpdated();
   return kErrorOk;
 }
 
-Error BaseEmitter::onDetach(CodeHolder* code) noexcept {
+Error BaseEmitter::onDetach(CodeHolder& code) noexcept {
   DebugUtils::unused(code);
 
-  if (!hasOwnLogger())
+  if (!hasOwnLogger()) {
     _logger = nullptr;
+  }
 
-  if (!hasOwnErrorHandler())
+  if (!hasOwnErrorHandler()) {
     _errorHandler = nullptr;
+  }
 
   _clearEmitterFlags(~kEmitterPreservedFlags);
+  _instructionAlignment = uint8_t(0);
   _forcedInstOptions = InstOptions::kReserved;
   _privateData = 0;
 
@@ -317,15 +414,28 @@ Error BaseEmitter::onDetach(CodeHolder* code) noexcept {
   return kErrorOk;
 }
 
+Error BaseEmitter::onReinit(CodeHolder& code) noexcept {
+  ASMJIT_ASSERT(_code == &code);
+  DebugUtils::unused(code);
+
+  _instOptions = InstOptions::kNone;
+  _extraReg.reset();
+  _inlineComment = nullptr;
+
+  return kErrorOk;
+}
+
 void BaseEmitter::onSettingsUpdated() noexcept {
   // Only called when attached to CodeHolder by CodeHolder.
   ASMJIT_ASSERT(_code != nullptr);
 
-  if (!hasOwnLogger())
+  if (!hasOwnLogger()) {
     _logger = _code->logger();
+  }
 
-  if (!hasOwnErrorHandler())
+  if (!hasOwnErrorHandler()) {
     _errorHandler = _code->errorHandler();
+  }
 
   BaseEmitter_updateForcedOptions(this);
 }

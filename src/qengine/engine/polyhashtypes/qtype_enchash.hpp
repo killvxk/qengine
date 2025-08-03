@@ -10,21 +10,750 @@
 #pragma region qengine
 
 #include "../hashtypes/qtype_hash.hpp"
-#include "../../polyc/polyc.hpp"
 
 #pragma endregion
 
 #pragma endregion
 
-#pragma region Preprocessor
 
-#ifdef NDEBUG
+/*
+	---------------------- Details on Class Global is_ctor_lock and it's Purpose: ---------------------
 
-#pragma optimize("", on)
-#pragma inline_depth(255)
-#pragma inline_recursion(on) 
+	§11.4.5/3 [class.base.init]
+	* ISO / IEC 14882 : 2023 §11.4.5 [class.ctor] / §11.9.3 [class.base.init]
+	The bullets read (emphasis added):
+
+	… virtual bases …
+
+	… direct bases …
+	3) non-static data members are initialized in the order of declaration in the class definition.
+	4) Finally, the body of the constructor is executed.
+
+-------------------------------------------------------------------------------------------------------
+
+	C++ Copy-Move Ctor's Implicate by Precept that All Members must be Explicitly / Implicitly Initialized BEFORE the Subsequent Body of the Explicitly Defined Copy-Move Ctor itself,
+	the Ctor Default boolean Argument skip_ctor is a Workaround for this, as in our Case we MUST lock a Global Mutex before Modulating Global States in the Parent Classes Located in qtype_enchash.hpp
+
+	---------------------- Details on Redundant Ctor Initializers ---------------------
+
+	Compiler's Generate Warnings without Explicit Initializer-List Members for ALL Globals, EVEN IF you Initialize them Later in the Ctor Body,
+	the NULL Initializer List is to Surpress this Warning State at Little - No Performance Cost Dependent on Compiler Optimization Settings, and has no Actual Affect on the Output Application
+*/
+#pragma region Class Expansion Macros
+
+#ifndef QPRIMITIVE_TYPE_MUTATIONS
+
+#define QEXPAND_PRIMITIVE_T(__NAME__, __TYPE__, __QTYPE__)\
+class __NAME__ {\
+private:\
+	__QTYPE__ _value;\
+	mut std::recursive_mutex mtx; \
+	volatile bool is_ctor_lock = true; \
+public:\
+	__optimized_ctor __NAME__(imut __TYPE__ value = 0) nex {\
+		std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!is_init)\
+			init_qtype_hash();\
+		set(value);\
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __stackcall ~__NAME__() nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		SECURE_ZERO_MEMORY((volatile void*)&_value, sizeof(_value)); \
+	}\
+	__compelled_inline __TYPE__ __stackcall get() imut nex {\
+		if(!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		auto value = _value.get();\
+		qcipher_provider::cipher_decrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(__TYPE__));\
+		value = *_value.open_data_ptr();\
+		qcipher_provider::cipher_encrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(__TYPE__));\
+		_value.close_data_ptr();\
+		return value;\
+	}\
+	__compelled_inline bool __regcall set(imut __TYPE__ value) nex {\
+		if(!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		*_value.open_data_ptr() = value;\
+		qcipher_provider::cipher_encrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(__TYPE__));\
+		return _value.close_data_ptr();\
+	}\
+	__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {\
+		if(!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		return _value.open_data_ptr();\
+	}\
+	__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		return imut_cast<__TYPE__*>(_value.get_raw_memory_address());\
+	}\
+	__compelled_inline __NAME__ __regcall operator+(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() + value);\
+	};\
+	__compelled_inline __NAME__ __regcall operator-(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() - value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator/(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() / value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator*(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() * value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator&(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() & value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator|(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() | value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator%(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() % value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator^(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() ^ value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator<<(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() << value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator>>(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() >> value);\
+	}\
+	__compelled_inline __NAME__& __regcall operator+=(imut __TYPE__ value) nex {\
+		set(get() + value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator-=(imut __TYPE__ value) nex {\
+		set(get() - value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __stackcall operator++() nex {\
+		operator+=(1i8);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __stackcall operator--() nex {\
+		operator-=(1i8);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator*=(imut __TYPE__ value) nex {\
+		set(get() * value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator/=(imut __TYPE__ value) nex {\
+		set(get() / value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator%=(imut __TYPE__ value) nex {\
+		set(get() % value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator^=(imut __TYPE__ value) nex {\
+		set(get() ^ value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator&=(imut __TYPE__ value) nex {\
+		set(get() & value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator|=(imut __TYPE__ value) nex {\
+		set(get() | value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator<<=(imut __TYPE__ value) nex {\
+		set(get() << value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator>>=(imut __TYPE__ value) nex {\
+		set(get() >> value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator=(imut __TYPE__ value) nex {\
+		set(value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__(const __NAME__& other) noexcept : _value(NULL, true) { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx); \
+		_value = other._value; \
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __NAME__& operator=(__NAME__& other) noexcept {\
+		if (this == &other) return *this; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx); \
+		_value = other._value; \
+		is_ctor_lock = false; \
+		return *this; \
+	}\
+	__compelled_inline __NAME__(__NAME__&& other) noexcept : _value(NULL, true) { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value = std::move(other._value);\
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __NAME__& operator=(__NAME__&& other) noexcept { \
+		if (this == &other) return *this; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value = std::move(other._value);\
+		is_ctor_lock = false; \
+		return *this; \
+	}\
+	__compelled_inline __stackcall operator __TYPE__() imut nex {\
+		return get();\
+	}\
+};
+
+#define QEXPAND_PRECISION_T(__NAME__, __TYPE__, __QTYPE__)\
+class __NAME__ {\
+private:\
+	__QTYPE__ _value;\
+	mut std::recursive_mutex mtx; \
+	volatile bool is_ctor_lock = true; \
+public:\
+	__compelled_inline __fpcall __NAME__(imut __TYPE__ value = 0.f) nex {\
+		if (!is_init)\
+			init_qtype_hash();\
+		set(value);\
+		is_ctor_lock = false; \
+	}\
+	__optimized_dtor ~__NAME__() nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		SECURE_ZERO_MEMORY((volatile void*)&_value, sizeof(_value)); \
+	}\
+	__compelled_inline __TYPE__ __stackcall get() imut nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		auto value = _value.get();\
+		qcipher_provider::cipher_decrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(__TYPE__));\
+		value = *_value.open_data_ptr();\
+		qcipher_provider::cipher_encrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(__TYPE__));\
+		_value.close_data_ptr();\
+		return value;\
+	}\
+	__compelled_inline bool __regcall set(imut __TYPE__ value) nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		*_value.open_data_ptr() = value;\
+		qcipher_provider::cipher_encrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(__TYPE__));\
+		return _value.close_data_ptr();\
+	}\
+	__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {\
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		return _value.open_data_ptr();\
+	}\
+	__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {\
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		return imut_cast<__TYPE__*>(_value.get_raw_memory_address());\
+	}\
+	__compelled_inline __NAME__ __regcall operator+(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() + value);\
+	};\
+	__compelled_inline __NAME__ __regcall operator-(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() - value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator/(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() / value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator*(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() * value);\
+	}\
+	__compelled_inline __NAME__& __regcall operator+=(imut __TYPE__ value) nex {\
+		set(get() + value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator-=(imut __TYPE__ value) nex {\
+		set(get() - value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __stackcall operator++() nex {\
+		operator+=(1i8);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __stackcall operator--() nex {\
+		operator-=(1i8);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator*=(imut __TYPE__ value) nex {\
+		set(get() * value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator/=(imut __TYPE__ value) nex {\
+		set(get() / value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator=(imut __TYPE__ value) nex {\
+		set(value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__(const __NAME__& other) noexcept : _value(NULL, true) { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx); \
+		_value = other._value; \
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __NAME__& operator=(__NAME__& other) noexcept {\
+		if (this == &other) return *this; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx); \
+		_value = other._value; \
+		is_ctor_lock = false; \
+		return *this; \
+	}\
+	__compelled_inline __NAME__(__NAME__&& other) noexcept : _value(NULL, true) { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value = std::move(other._value);\
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __NAME__& operator=(__NAME__&& other) noexcept { \
+		if (this == &other) return *this; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value = std::move(other._value);\
+		is_ctor_lock = false; \
+		return *this; \
+	}\
+	__compelled_inline __stackcall operator __TYPE__() imut nex {\
+		return get();\
+	}\
+};
+
+#else
+
+#define QEXPAND_PRIMITIVE_T(__NAME__, __TYPE__, __QTYPE__)\
+class __NAME__ {\
+private:\
+	__QTYPE__ _value;\
+	mut std::recursive_mutex mtx; \
+	volatile bool is_ctor_lock = true; \
+public:\
+	__optimized_ctor __NAME__(imut __TYPE__ value = 0) nex { \
+		std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!is_init)\
+			init_qtype_hash();\
+		set(value);\
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __stackcall ~__NAME__() nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		SECURE_ZERO_MEMORY((volatile void*)&_value, sizeof(_value)); \
+	}\
+	__compelled_inline __TYPE__ __stackcall get() imut nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		auto value = _value.get();\
+		qcipher_provider::cipher_decrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(cmut<__TYPE__>));\
+		value = _value.open_data_ptr()->get();\
+		qcipher_provider::cipher_encrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(cmut<__TYPE__>));\
+		_value.close_data_ptr();\
+		return value;\
+	}\
+	__compelled_inline bool __regcall set(imut __TYPE__ value) nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value.open_data_ptr()->set(value);\
+		qcipher_provider::cipher_encrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(cmut<__TYPE__>));\
+		return _value.close_data_ptr();\
+	}\
+	__compelled_inline cmut<__TYPE__>* __stackcall open_data_ptr() imut nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		return _value.open_data_ptr();\
+	}\
+	__compelled_inline cmut<__TYPE__>* __stackcall get_raw_memory_address() imut nex {\
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		return imut_cast<cmut<__TYPE__>*>(_value.get_raw_memory_address());\
+	}\
+	__compelled_inline __NAME__ __regcall operator+(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() + value);\
+	};\
+	__compelled_inline __NAME__ __regcall operator-(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() - value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator/(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() / value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator*(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() * value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator&(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() & value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator|(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() | value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator%(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() % value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator^(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() ^ value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator<<(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() << value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator>>(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() >> value);\
+	}\
+	__compelled_inline __NAME__& __regcall operator+=(imut __TYPE__ value) nex {\
+		set(get() + value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator-=(imut __TYPE__ value) nex {\
+		set(get() - value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __stackcall operator++() nex {\
+		operator+=(1i8);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __stackcall operator--() nex {\
+		operator-=(1i8);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator*=(imut __TYPE__ value) nex {\
+		set(get() * value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator/=(imut __TYPE__ value) nex {\
+		set(get() / value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator%=(imut __TYPE__ value) nex {\
+		set(get() % value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator^=(imut __TYPE__ value) nex {\
+		set(get() ^ value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator&=(imut __TYPE__ value) nex {\
+		set(get() & value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator|=(imut __TYPE__ value) nex {\
+		set(get() | value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator<<=(imut __TYPE__ value) nex {\
+		set(get() << value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator>>=(imut __TYPE__ value) nex {\
+		set(get() >> value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator=(imut __TYPE__ value) nex {\
+		set(value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__(const __NAME__& other) noexcept : _value(NULL, true) { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx); \
+		_value = other._value; \
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __NAME__& operator=(__NAME__& other) noexcept {\
+		if (this == &other) return *this; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx); \
+		_value = other._value; \
+		is_ctor_lock = false; \
+		return *this; \
+	}\
+	__compelled_inline __NAME__(__NAME__&& other) noexcept : _value(NULL, true) { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value = std::move(other._value);\
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __NAME__& operator=(__NAME__&& other) noexcept { \
+		if (this == &other) return *this; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value = std::move(other._value);\
+		is_ctor_lock = false; \
+		return *this; \
+	}\
+	__compelled_inline __stackcall operator __TYPE__() imut nex {\
+		return get();\
+	}\
+};
+
+#define QEXPAND_PRECISION_T(__NAME__, __TYPE__, __QTYPE__)\
+class __NAME__ {\
+private:\
+	__QTYPE__ _value;\
+	mut std::recursive_mutex mtx; \
+	volatile bool is_ctor_lock = true; \
+public:\
+	__compelled_inline __fpcall __NAME__(imut __TYPE__ value = 0.f) nex {\
+		std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!is_init)\
+			init_qtype_hash();\
+		set(value);\
+		is_ctor_lock = false; \
+	}\
+	__optimized_dtor ~__NAME__() nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		SECURE_ZERO_MEMORY((volatile void*)&_value, sizeof(_value)); \
+	}\
+	__compelled_inline __TYPE__ __stackcall get() imut nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		auto value = _value.get();\
+		qcipher_provider::cipher_decrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(cmut<__TYPE__>));\
+		value = _value.open_data_ptr()->get();\
+		qcipher_provider::cipher_encrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(cmut<__TYPE__>));\
+		_value.close_data_ptr();\
+		return value;\
+	}\
+	__compelled_inline bool __regcall set(imut __TYPE__ value) nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value.open_data_ptr()->set(value);\
+		qcipher_provider::cipher_encrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(cmut<__TYPE__>));\
+		return _value.close_data_ptr();\
+	}\
+	__compelled_inline cmut<__TYPE__>* __stackcall open_data_ptr() imut nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		return _value.open_data_ptr();\
+	}\
+	__compelled_inline cmut<__TYPE__>* __stackcall get_raw_memory_address() imut nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		return imut_cast<cmut<__TYPE__>*>(_value.get_raw_memory_address());\
+	}\
+	__compelled_inline __NAME__ __regcall operator+(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() + value);\
+	};\
+	__compelled_inline __NAME__ __regcall operator-(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() - value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator/(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() / value);\
+	}\
+	__compelled_inline __NAME__ __regcall operator*(imut __TYPE__ value) imut nex {\
+		return __NAME__(get() * value);\
+	}\
+	__compelled_inline __NAME__& __regcall operator+=(imut __TYPE__ value) nex {\
+		set(get() + value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator-=(imut __TYPE__ value) nex {\
+		set(get() - value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __stackcall operator++() nex {\
+		operator+=(1i8);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __stackcall operator--() nex {\
+		operator-=(1i8);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator*=(imut __TYPE__ value) nex {\
+		set(get() * value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator/=(imut __TYPE__ value) nex {\
+		set(get() / value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __regcall operator=(imut __TYPE__ value) nex {\
+		set(value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__(const __NAME__& other) noexcept : _value(NULL, true) { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx); \
+		_value = other._value; \
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __NAME__& operator=(__NAME__& other) noexcept {\
+		if (this == &other) return *this; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx); \
+		_value = other._value; \
+		is_ctor_lock = false; \
+		return *this; \
+	}\
+	__compelled_inline __NAME__(__NAME__&& other) noexcept : _value(NULL, true) { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value = std::move(other._value);\
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __NAME__& operator=(__NAME__&& other) noexcept { \
+		if (this == &other) return *this; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value = std::move(other._value);\
+		is_ctor_lock = false; \
+		return *this; \
+	}\
+	__compelled_inline __stackcall operator __TYPE__() imut nex {\
+		return get();\
+	}\
+};
 
 #endif
+
+#define QEXPAND_VECTOR_T(__NAME__, __TYPE__, __STORE__, __QTYPE__)\
+class __NAME__ {\
+private:\
+	__QTYPE__ _value;\
+	mut std::recursive_mutex mtx; \
+	volatile bool is_ctor_lock = true; \
+public:\
+	__optimized_ctor __NAME__(imut __TYPE__ value) nex : _value(value) {\
+		std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!is_init)\
+			init_qtype_hash();\
+		set(value);\
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __stackcall ~__NAME__() nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		SECURE_ZERO_MEMORY((volatile void*)&_value, sizeof(_value)); \
+	}\
+	__compelled_inline imut __TYPE__ __stackcall get() imut nex { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		auto value = _value.get();\
+		qcipher_provider::cipher_decrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(__TYPE__));\
+		value = _value.get();\
+		qcipher_provider::cipher_encrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(__TYPE__));\
+		_value.close_data_ptr();\
+		return value;\
+	}\
+	__compelled_inline imut bool __regcall set(imut __TYPE__ value) nex {\
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		auto* buffer_ptr = _value.open_data_ptr();\
+		__STORE__(reinterpret_cast<__TYPE__*>(buffer_ptr), value);\
+		qcipher_provider::cipher_encrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(__TYPE__));\
+		return _value.close_data_ptr();\
+	}\
+	__compelled_inline __TYPE__ __fpcall load(imut __TYPE__* value) nex { \
+		if(!value) return {NULL}; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		set(*value); \
+		return get(); \
+	} \
+	__compelled_inline imut bool __fpcall store(imut __TYPE__* value) nex { \
+		if(!value) return false; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		return set(*value); \
+	} \
+	__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {\
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		return _value.open_data_ptr();\
+	}\
+	__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {\
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		return _value.get_raw_memory_address();\
+	}\
+	__compelled_inline __NAME__& __fpcall operator=(imut __TYPE__ value) nex { \
+		set(value); \
+		return *this; \
+	} \
+	__compelled_inline __NAME__(const __NAME__& other) noexcept : _value({NULL}, true) { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx); \
+		_value = other._value; \
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __NAME__& operator=(__NAME__& other) noexcept { \
+		if (this == &other) return *this; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx); \
+		_value = other._value; \
+		is_ctor_lock = false; \
+		return *this; \
+	}\
+	__compelled_inline __NAME__(__NAME__&& other) noexcept : _value({NULL}, true) { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value = std::move(other._value);\
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __NAME__& operator=(__NAME__&& other) noexcept { \
+		if (this == &other) return *this; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value = std::move(other._value);\
+		is_ctor_lock = false; \
+		return *this; \
+	}\
+	__compelled_inline __stackcall operator __TYPE__() imut nex {\
+		return get();\
+	}\
+};
+
+#define QEXPAND_STRING_T(__NAME__, __TYPE__, __QTYPE__, __CHTYPE__, __PREFIX__)\
+class __NAME__ {\
+private:\
+	__QTYPE__ _value;\
+	mut std::recursive_mutex mtx; \
+	volatile bool is_ctor_lock = true; \
+public:\
+	__compelled_inline __stackcall __NAME__(imut __TYPE__ value) nex { \
+		std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!is_init)\
+			init_qtype_hash();\
+		set(value);\
+		is_ctor_lock = false; \
+	} \
+	__optimized_ctor __NAME__(imut __CHTYPE__* value = __PREFIX__##"") { \
+		std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!is_init)\
+			init_qtype_hash();\
+		set(value);\
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __stackcall ~__NAME__() nex { \
+		if(!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		SECURE_ZERO_MEMORY((volatile c_void)_value.get_raw_memory_address()->data(), _value.get_length()); \
+		SECURE_ZERO_MEMORY((volatile c_void)&_value, sizeof(_value)); \
+	}\
+	__compelled_inline __TYPE__ __stackcall get() imut nex {\
+		if(!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		auto value = _value.get();\
+		qcipher_provider::cipher_decrypt(imut_cast<__CHTYPE__*>(_value.open_data_ptr()), imut_cast<__CHTYPE__*>(_value.open_data_ptr()), _value.get().size() * sizeof(__CHTYPE__));\
+		value = *_value.open_str_ptr();\
+		qcipher_provider::cipher_encrypt(imut_cast<__CHTYPE__*>(_value.open_data_ptr()), imut_cast<__CHTYPE__*>(_value.open_data_ptr()), _value.get().size() * sizeof(__CHTYPE__));\
+		_value.close_data_ptr();\
+		return value;\
+	}\
+	__compelled_inline bool __stackcall set(imut __TYPE__ value) nex {\
+		*_value.open_str_ptr() = value;\
+		qcipher_provider::cipher_encrypt(imut_cast<__CHTYPE__*>(_value.open_data_ptr()), imut_cast<__CHTYPE__*>(_value.open_data_ptr()), _value.get().size() * sizeof(__CHTYPE__));\
+		return _value.close_data_ptr();\
+	}\
+	__compelled_inline imut c_void __stackcall open_data_ptr() nex {\
+		if(!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		return imut_cast<__CHTYPE__*>(_value.open_data_ptr());\
+	}\
+	__compelled_inline imut __TYPE__* __stackcall get_raw_memory_address() imut nex {\
+		if(!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		return _value.get_raw_memory_address();\
+	}\
+	__compelled_inline __NAME__ __stackcall operator+(imut __TYPE__& value) imut nex {\
+		return __NAME__(get() + value);\
+	}\
+	__compelled_inline __NAME__& __stackcall operator+=(imut __TYPE__& value) nex {\
+		set(get() + value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__& __stackcall operator=(imut __TYPE__ value) nex {\
+		set(value);\
+		return *this;\
+	}\
+	__compelled_inline __NAME__(const __NAME__& other) noexcept : _value(__PREFIX__##"", true) { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx); \
+		_value = other._value; \
+		is_ctor_lock = false; \
+	}\
+	__compelled_inline __NAME__& operator=(__NAME__& other) noexcept {\
+		if (this == &other) return *this; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx); \
+		_value = other._value; \
+		is_ctor_lock = false; \
+		return *this; \
+	}\
+	__compelled_inline __NAME__(__NAME__&& other) noexcept : _value(__PREFIX__##"", true) { \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value = std::move(other._value);\
+	}\
+	__compelled_inline __NAME__& operator=(__NAME__&& other) noexcept { \
+		if (this == &other) return *this; \
+		if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx); \
+		_value = std::move(other._value);\
+		is_ctor_lock = false; \
+		return *this; \
+	}\
+	__compelled_inline __stackcall operator __TYPE__() imut nex {\
+		return get();\
+	}\
+};
 
 #pragma endregion
 
@@ -38,20 +767,29 @@ namespace qengine {
 
 #pragma region Singleton 
 
-		extern bool is_init;
+		inline bool is_init = false;
 
 #pragma endregion
 
 #pragma region Static Methods
+
+		// As of Now, only one Violation Callback is allowed for all Hash-Checked Objects (I can't see reason for there needing to be more than one, however if you find Reason / Need - leave feedback and I can Change this)
+		__compelled_inline void __regcall set_violation_callback(qcallback::qmem_exception_rogue_c callback = qtype_hash::violation_callback_d) nex {
+
+			if (is_init)
+				return;
+
+			qtype_hash::init_hash_t(callback);
+
+			is_init = true;
+		}
 
 		__compelled_inline void __stackcall init_qtype_hash(qcallback::qmem_exception_rogue_c callback = qtype_hash::violation_callback_d) nex {
 
 			if (is_init || qtype_hash::is_init)
 				return;
 
-			qtype_hash::init_hash_t(callback);
-
-			is_init = true;
+			set_violation_callback(callback);
 		}
 
 #pragma endregion
@@ -69,6 +807,10 @@ class qeh_struct {
 
 			qtype_hash::qh_struct<T> _value;
 
+			mut std::recursive_mutex mtx;
+
+			volatile bool is_ctor_lock = true;
+
 #pragma endregion
 
 		public:
@@ -77,16 +819,21 @@ class qeh_struct {
 
 			__optimized_ctor qeh_struct(imut T value = T{}) nex {
 
+				std::lock_guard<std::recursive_mutex> lock(mtx);
+
 				if (!is_init)
 					init_qtype_hash();
 
 				set(value);
+
+				is_ctor_lock = false;
 			}
 
 			__compelled_inline __stackcall ~qeh_struct() nex {
+				
+				if(!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
 
-				// Dtor for qh_xxx will inline RtlZeroMemory() macro
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
+				SECURE_ZERO_MEMORY(&_value, sizeof(_value));
 			}
 
 #pragma endregion
@@ -95,14 +842,16 @@ class qeh_struct {
 
 			__compelled_inline imut T __stackcall get() imut nex {
 
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
 				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
 				auto value = _value.get();
 
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(T));
+				qcipher_provider::cipher_decrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(T));
 
 				value = *_value.open_data_ptr();
 
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(T));
+				qcipher_provider::cipher_encrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(T));
 
 				_value.close_data_ptr();
 
@@ -112,16 +861,20 @@ class qeh_struct {
 			template<typename _T>
 			__compelled_inline imut _T __regcall get(imut _T T::* member) imut nex {
 
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
 				imut auto decrypted = get();
 
 				return decrypted.*member;
 			}
 
 			__compelled_inline imut bool __regcall set(imut T value) nex {
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
 				
 				*_value.open_data_ptr() = value;
 
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(T));
+				qcipher_provider::cipher_encrypt(_value.open_data_ptr(), _value.open_data_ptr(), sizeof(T));
 
 				return _value.close_data_ptr();
 			}
@@ -129,18 +882,26 @@ class qeh_struct {
 			template<typename _T>
 			__compelled_inline imut bool __regcall set(_T T::* member, imut _T value) nex{
 
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
 				auto decrypted = get();
 
 				decrypted.*member = value;
 
-				return set( std::move(decrypted) );
+				return set(decrypted);
 			}
 
 			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
 				return _value.open_data_ptr();
 			}
 
 			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
 				return imut_cast<T*>(_value.get_raw_memory_address());
 			}
 
@@ -149,96 +910,66 @@ class qeh_struct {
 #pragma region Operators
 
 			__compelled_inline qeh_struct<T>& __regcall operator=(imut T value) nex {
+
 				set(value);
 				return *this;
 			}
 
 			__compelled_inline __stackcall operator T() imut nex {
+
 				return get();
 			}
 
 #pragma endregion
-		};
 
-#pragma endregion
+#pragma region Deleted Ctors && Move-Copy Operators
 
-#pragma region Other Primitive Types
+			__compelled_inline qeh_struct(const qeh_struct<T>& other) noexcept {
 
-class qeh_bool {
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
 
-		private:
+				if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx);
 
-#pragma region Encrypted value
+				_value = other._value;
 
-			qtype_hash::qh_bool _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__optimized_ctor qeh_bool(imut bool value = false) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
+				is_ctor_lock = false;
 			}
 
-			__compelled_inline __stackcall ~qeh_bool() nex {
+			__compelled_inline qeh_struct<T>& operator=(qeh_struct<T>& other) noexcept {
 
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
+				if (this == &other) return *this;
 
-#pragma endregion
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
 
-#pragma region Accessors
+				if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx);
 
-			__compelled_inline bool __stackcall get() imut nex {
+				_value = other._value;
 
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
+				is_ctor_lock = false;
 
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(bool));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(bool));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut bool value) nex {
-				
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(bool));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<bool*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_bool& __regcall operator=(imut bool value) nex {
-				set(value);
 				return *this;
 			}
 
-			__compelled_inline __stackcall operator bool() imut nex {
-				return get();
+			__compelled_inline qeh_struct(qeh_struct<T>&& other) noexcept {
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
+				_value = std::move(other._value);
+
+				is_ctor_lock = false;
+			}
+
+			__compelled_inline qeh_struct<T>& operator=(qeh_struct<T>&& other) noexcept {
+
+				if (this == &other) return *this;
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
+				_value = std::move(other._value);
+
+				is_ctor_lock = false;
+
+				return *this;
 			}
 
 #pragma endregion
@@ -247,2783 +978,121 @@ class qeh_bool {
 
 #pragma endregion
 
-#pragma region WORD
+#pragma region Primitive
 
 #pragma region 8-bit
 
-		class qeh_int8 {
+QEXPAND_PRIMITIVE_T(qeh_int8, std::int8_t, qtype_hash::qh_int8);
 
-		private:
-
-#pragma region Encrypted value
-
-			qtype_hash::qh_int8 _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__optimized_ctor qeh_int8(imut std::int8_t value = 0) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__compelled_inline __stackcall ~qeh_int8() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline std::int8_t __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::int8_t));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::int8_t));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut std::int8_t value) nex {
-				
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::int8_t));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<std::int8_t*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_int8 __regcall operator+(imut std::int8_t value) imut nex {
-				return qeh_int8(get() + value);
-			};
-
-			__compelled_inline qeh_int8 __regcall operator-(imut std::int8_t value) imut nex {
-				return qeh_int8(get() - value);
-			}
-
-			__compelled_inline qeh_int8 __regcall operator/(imut std::int8_t value) imut nex {
-				return qeh_int8(get() / value);
-			}
-
-			__compelled_inline qeh_int8 __regcall operator*(imut std::int8_t value) imut nex {
-				return qeh_int8(get() * value);
-			}
-
-			__compelled_inline qeh_int8 __regcall operator&(imut std::int8_t value) imut nex {
-				return qeh_int8(get() & value);
-			}
-
-			__compelled_inline qeh_int8 __regcall operator|(imut std::int8_t value) imut nex {
-				return qeh_int8(get() | value);
-			}
-
-			__compelled_inline qeh_int8 __regcall operator%(imut std::int8_t value) imut nex {
-				return qeh_int8(get() % value);
-			}
-
-			__compelled_inline qeh_int8 __regcall operator^(imut std::int8_t value) imut nex {
-				return qeh_int8(get() ^ value);
-			}
-
-			__compelled_inline qeh_int8 __regcall operator<<(imut std::int8_t value) imut nex {
-				return qeh_int8(get() << value);
-			}
-
-			__compelled_inline qeh_int8 __regcall operator>>(imut std::int8_t value) imut nex {
-				return qeh_int8(get() >> value);
-			}
-
-			__compelled_inline qeh_int8& __regcall operator+=(imut std::int8_t value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int8& __regcall operator-=(imut std::int8_t value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int8& __stackcall operator++() nex {
-				operator+=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_int8& __stackcall operator--() nex {
-				operator-=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_int8& __regcall operator*=(imut std::int8_t value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int8& __regcall operator/=(imut std::int8_t value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int8& __regcall operator%=(imut std::int8_t value) nex {
-				set(get() % value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int8& __regcall operator^=(imut std::int8_t value) nex {
-				set(get() ^ value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int8& __regcall operator&=(imut std::int8_t value) nex {
-				set(get() & value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int8& __regcall operator|=(imut std::int8_t value) nex {
-				set(get() | value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int8& __regcall operator<<=(imut std::int8_t value) nex {
-				set(get() << value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int8& __regcall operator>>=(imut std::int8_t value) nex {
-				set(get() >> value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int8& __regcall operator=(imut std::int8_t value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator std::int8_t() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
-
-		class qeh_uint8 {
-
-		private:
-
-#pragma region Encrypted value
-
-			qtype_hash::qh_uint8 _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __regcall qeh_uint8(imut std::uint8_t value = 0) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__optimized_dtor ~qeh_uint8() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline std::uint8_t __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::uint8_t));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::uint8_t));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut std::uint8_t value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::uint8_t));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<std::uint8_t*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_uint8 __regcall operator+(imut std::uint8_t value) imut nex {
-				return qeh_uint8(get() + value);
-			};
-
-			__compelled_inline qeh_uint8 __regcall operator-(imut std::uint8_t value) imut nex {
-				return qeh_uint8(get() - value);
-			}
-
-			__compelled_inline qeh_uint8 __regcall operator/(imut std::uint8_t value) imut nex {
-				return qeh_uint8(get() / value);
-			}
-
-			__compelled_inline qeh_uint8 __regcall operator*(imut std::uint8_t value) imut nex {
-				return qeh_uint8(get() * value);
-			}
-
-			__compelled_inline qeh_uint8 __regcall operator&(imut std::uint8_t value) imut nex {
-				return qeh_uint8(get() & value);
-			}
-
-			__compelled_inline qeh_uint8 __regcall operator|(imut std::uint8_t value) imut nex {
-				return qeh_uint8(get() | value);
-			}
-
-			__compelled_inline qeh_uint8 __regcall operator%(imut std::uint8_t value) imut nex {
-				return qeh_uint8(get() % value);
-			}
-
-			__compelled_inline qeh_uint8 __regcall operator^(imut std::uint8_t value) imut nex {
-				return qeh_uint8(get() ^ value);
-			}
-
-			__compelled_inline qeh_uint8 __regcall operator<<(imut std::uint8_t value) imut nex {
-				return qeh_uint8(get() << value);
-			}
-
-			__compelled_inline qeh_uint8 __regcall operator>>(imut std::uint8_t value) imut nex {
-				return qeh_uint8(get() >> value);
-			}
-
-			__compelled_inline qeh_uint8& __regcall operator+=(imut std::uint8_t value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint8& __regcall operator-=(imut std::uint8_t value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint8& __stackcall operator++() nex {
-				operator+=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint8& __stackcall operator--() nex {
-				operator-=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint8& __regcall operator*=(imut std::uint8_t value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint8& __regcall operator/=(imut std::uint8_t value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint8& __regcall operator%=(imut std::uint8_t value) nex {
-				set(get() % value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint8& __regcall operator^=(imut std::uint8_t value) nex {
-				set(get() ^ value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint8& __regcall operator&=(imut std::uint8_t value) nex {
-				set(get() & value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint8& __regcall operator|=(imut std::uint8_t value) nex {
-				set(get() | value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint8& __regcall operator<<=(imut std::uint8_t value) nex {
-				set(get() << value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint8& __regcall operator>>=(imut std::uint8_t value) nex {
-				set(get() >> value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint8& __regcall operator=(imut std::uint8_t value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator std::uint8_t() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
+QEXPAND_PRIMITIVE_T(qeh_uint8, std::uint8_t, qtype_hash::qh_uint8);
 
 #pragma endregion
 
 #pragma region 16-bit
 
-		class qeh_int16 {
+QEXPAND_PRIMITIVE_T(qeh_int16, std::int16_t, qtype_hash::qh_int16);
 
-		private:
-
-#pragma region Encrypted value
-
-			qtype_hash::qh_int16 _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__optimized_ctor qeh_int16(imut std::int16_t value = 0) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__optimized_dtor ~qeh_int16() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline std::int16_t __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::int16_t));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::int16_t));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut std::int16_t value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::int16_t));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<std::int16_t*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_int16 __regcall operator+(imut std::int16_t value) imut nex {
-				return qeh_int16(get() + value);
-			};
-
-			__compelled_inline qeh_int16 __regcall operator-(imut std::int16_t value) imut nex {
-				return qeh_int16(get() - value);
-			}
-
-			__compelled_inline qeh_int16 __regcall operator/(imut std::int16_t value) imut nex {
-				return qeh_int16(get() / value);
-			}
-
-			__compelled_inline qeh_int16 __regcall operator*(imut std::int16_t value) imut nex {
-				return qeh_int16(get() * value);
-			}
-
-			__compelled_inline qeh_int16 __regcall operator&(imut std::int16_t value) imut nex {
-				return qeh_int16(get() & value);
-			}
-
-			__compelled_inline qeh_int16 __regcall operator|(imut std::int16_t value) imut nex {
-				return qeh_int16(get() | value);
-			}
-
-			__compelled_inline qeh_int16 __regcall operator%(imut std::int16_t value) imut nex {
-				return qeh_int16(get() % value);
-			}
-
-			__compelled_inline qeh_int16 __regcall operator^(imut std::int16_t value) imut nex {
-				return qeh_int16(get() ^ value);
-			}
-
-			__compelled_inline qeh_int16 __regcall operator<<(imut std::int16_t value) imut nex {
-				return qeh_int16(get() << value);
-			}
-
-			__compelled_inline qeh_int16 __regcall operator>>(imut std::int16_t value) imut nex {
-				return qeh_int16(get() >> value);
-			}
-
-			__compelled_inline qeh_int16& __regcall operator+=(imut std::int16_t value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int16& __regcall operator-=(imut std::int16_t value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int16& __stackcall operator++() nex {
-				operator+=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_int16& __stackcall operator--() nex {
-				operator-=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_int16& __regcall operator*=(imut std::int16_t value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int16& __regcall operator/=(imut std::int16_t value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int16& __regcall operator%=(imut std::int16_t value) nex {
-				set(get() % value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int16& __regcall operator^=(imut std::int16_t value) nex {
-				set(get() ^ value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int16& __regcall operator&=(imut std::int16_t value) nex {
-				set(get() & value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int16& __regcall operator|=(imut std::int16_t value) nex {
-				set(get() | value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int16& __regcall operator<<=(imut std::int16_t value) nex {
-				set(get() << value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int16& __regcall operator>>=(imut std::int16_t value) nex {
-				set(get() >> value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int16& __regcall operator=(imut std::int16_t value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator std::int16_t() imut nex {
-				return get();
-			}
-
-#pragma endregion
-
-		};
-
-		class qeh_uint16 {
-
-		private:
-
-#pragma region Encrypted value
-
-			qtype_hash::qh_uint16 _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __regcall qeh_uint16(imut std::uint16_t value = 0) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-			__optimized_dtor ~qeh_uint16() nex {
-
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline std::uint16_t __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::uint16_t));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::uint16_t));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut std::uint16_t value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::uint16_t));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<std::uint16_t*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_uint16 __regcall operator+(imut std::uint16_t value) imut nex {
-				return qeh_uint16(get() + value);
-			};
-
-			__compelled_inline qeh_uint16 __regcall operator-(imut std::uint16_t value) imut nex {
-				return qeh_uint16(get() - value);
-			}
-
-			__compelled_inline qeh_uint16 __regcall operator/(imut std::uint16_t value) imut nex {
-				return qeh_uint16(get() / value);
-			}
-
-			__compelled_inline qeh_uint16 __regcall operator*(imut std::uint16_t value) imut nex {
-				return qeh_uint16(get() * value);
-			}
-
-			__compelled_inline qeh_uint16 __regcall operator&(imut std::uint16_t value) imut nex {
-				return qeh_uint16(get() & value);
-			}
-
-			__compelled_inline qeh_uint16 __regcall operator|(imut std::uint16_t value) imut nex {
-				return qeh_uint16(get() | value);
-			}
-
-			__compelled_inline qeh_uint16 __regcall operator%(imut std::uint16_t value) imut nex {
-				return qeh_uint16(get() % value);
-			}
-
-			__compelled_inline qeh_uint16 __regcall operator^(imut std::uint16_t value) imut nex {
-				return qeh_uint16(get() ^ value);
-			}
-
-			__compelled_inline qeh_uint16 __regcall operator<<(imut std::uint16_t value) imut nex {
-				return qeh_uint16(get() << value);
-			}
-
-			__compelled_inline qeh_uint16 __regcall operator>>(imut std::uint16_t value) imut nex {
-				return qeh_uint16(get() >> value);
-			}
-
-			__compelled_inline qeh_uint16& __regcall operator+=(imut std::uint16_t value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint16& __regcall operator-=(imut std::uint16_t value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint16& __stackcall operator++() nex {
-				operator+=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint16& __stackcall operator--() nex {
-				operator-=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint16& __regcall operator*=(imut std::uint16_t value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint16& __regcall operator/=(imut std::uint16_t value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint16& __regcall operator%=(imut std::uint16_t value) nex {
-				set(get() % value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint16& __regcall operator^=(imut std::uint16_t value) nex {
-				set(get() ^ value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint16& __regcall operator&=(imut std::uint16_t value) nex {
-				set(get() & value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint16& __regcall operator|=(imut std::uint16_t value) nex {
-				set(get() | value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint16& __regcall operator<<=(imut std::uint16_t value) nex {
-				set(get() << value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint16& __regcall operator>>=(imut std::uint16_t value) nex {
-				set(get() >> value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint16& __regcall operator=(imut std::uint16_t value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator std::uint16_t() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
+QEXPAND_PRIMITIVE_T(qeh_uint16, std::uint16_t, qtype_hash::qh_uint16);
 
 #pragma endregion
 
 #pragma region 32-bit
 
-		class qeh_int32 {
+QEXPAND_PRIMITIVE_T(qeh_int32, std::int32_t, qtype_hash::qh_int32);
 
-		private:
-
-#pragma region Encrypted value
-
-			qtype_hash::qh_int32 _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __regcall qeh_int32(imut std::int32_t value = 0) nex {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-			__optimized_dtor ~qeh_int32() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__symbolic std::int32_t __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-				
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::int32_t));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::int32_t));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline imut bool __regcall set(imut std::int32_t value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::int32_t));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<std::int32_t*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_int32 __regcall operator+(imut std::int32_t value) imut nex {
-				return qeh_int32(get() + value);
-			};
-
-			__compelled_inline qeh_int32 __regcall operator-(imut std::int32_t value) imut nex {
-				return qeh_int32(get() - value);
-			}
-
-			__compelled_inline qeh_int32 __regcall operator/(imut std::int32_t value) imut nex {
-				return qeh_int32(get() / value);
-			}
-
-			__compelled_inline qeh_int32 __regcall operator*(imut std::int32_t value) imut nex {
-				return qeh_int32(get() * value);
-			}
-
-			__compelled_inline qeh_int32 __regcall operator&(imut std::int32_t value) imut nex {
-				return qeh_int32(get() & value);
-			}
-
-			__compelled_inline qeh_int32 __regcall operator|(imut std::int32_t value) imut nex {
-				return qeh_int32(get() | value);
-			}
-
-			__compelled_inline qeh_int32 __regcall operator%(imut std::int32_t value) imut nex {
-				return qeh_int32(get() % value);
-			}
-
-			__compelled_inline qeh_int32 __regcall operator^(imut std::int32_t value) imut nex {
-				return qeh_int32(get() ^ value);
-			}
-
-			__compelled_inline qeh_int32 __regcall operator<<(imut std::int32_t value) imut nex {
-				return qeh_int32(get() << value);
-			}
-
-			__compelled_inline qeh_int32 __regcall operator>>(imut std::int32_t value) imut nex {
-				return qeh_int32(get() >> value);
-			}
-
-			__compelled_inline qeh_int32& __regcall operator+=(imut std::int32_t value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int32& __regcall operator-=(imut std::int32_t value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int32& __stackcall operator++() nex {
-				operator+=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_int32& __stackcall operator--() nex {
-				operator-=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_int32& __regcall operator*=(imut std::int32_t value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int32& __regcall operator/=(imut std::int32_t value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int32& __regcall operator%=(imut std::int32_t value) nex {
-				set(get() % value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int32& __regcall operator^=(imut std::int32_t value) nex {
-				set(get() ^ value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int32& __regcall operator&=(imut std::int32_t value) nex {
-				set(get() & value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int32& __regcall operator|=(imut std::int32_t value) nex {
-				set(get() | value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int32& __regcall operator<<=(imut std::int32_t value) nex {
-				set(get() << value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int32& __regcall operator>>=(imut std::int32_t value) nex {
-				set(get() >> value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int32& __regcall operator=(imut std::int32_t value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator std::int32_t() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
-
-		class qeh_uint32 {
-
-		private:
-
-#pragma region Encrypted value
-
-			qtype_hash::qh_uint32 _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __regcall qeh_uint32(imut std::uint32_t value = 0) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-			__optimized_dtor ~qeh_uint32() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline std::uint32_t __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::uint32_t));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::uint32_t));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut std::uint32_t value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::uint32_t));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<std::uint32_t*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_uint32 __regcall operator+(imut std::uint32_t value) imut nex {
-				return qeh_uint32(get() + value);
-			};
-
-			__compelled_inline qeh_uint32 __regcall operator-(imut std::uint32_t value) imut nex {
-				return qeh_uint32(get() - value);
-			}
-
-			__compelled_inline qeh_uint32 __regcall operator/(imut std::uint32_t value) imut nex {
-				return qeh_uint32(get() / value);
-			}
-
-			__compelled_inline qeh_uint32 __regcall operator*(imut std::uint32_t value) imut nex {
-				return qeh_uint32(get() * value);
-			}
-
-			__compelled_inline qeh_uint32 __regcall operator&(imut std::uint32_t value) imut nex {
-				return qeh_uint32(get() & value);
-			}
-
-			__compelled_inline qeh_uint32 __regcall operator|(imut std::uint32_t value) imut nex {
-				return qeh_uint32(get() | value);
-			}
-
-			__compelled_inline qeh_uint32 __regcall operator%(imut std::uint32_t value) imut nex {
-				return qeh_uint32(get() % value);
-			}
-
-			__compelled_inline qeh_uint32 __regcall operator^(imut std::uint32_t value) imut nex {
-				return qeh_uint32(get() ^ value);
-			}
-
-			__compelled_inline qeh_uint32 __regcall operator<<(imut std::uint32_t value) imut nex {
-				return qeh_uint32(get() << value);
-			}
-
-			__compelled_inline qeh_uint32 __regcall operator>>(imut std::uint32_t value) imut nex {
-				return qeh_uint32(get() >> value);
-			}
-
-			__compelled_inline qeh_uint32& __regcall operator+=(imut std::uint32_t value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint32& __regcall operator-=(imut std::uint32_t value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint32& __stackcall operator++() nex {
-				operator+=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint32& __stackcall operator--() nex {
-				operator-=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint32& __regcall operator*=(imut std::uint32_t value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint32& __regcall operator/=(imut std::uint32_t value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint32& __regcall operator%=(imut std::uint32_t value) nex {
-				set(get() % value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint32& __regcall operator^=(imut std::uint32_t value) nex {
-				set(get() ^ value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint32& __regcall operator&=(imut std::uint32_t value) nex {
-				set(get() & value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint32& __regcall operator|=(imut std::uint32_t value) nex {
-				set(get() | value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint32& __regcall operator<<=(imut std::uint32_t value) nex {
-				set(get() << value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint32& __regcall operator>>=(imut std::uint32_t value) nex {
-				set(get() >> value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint32& __regcall operator=(imut std::uint32_t value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator std::uint32_t() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
+QEXPAND_PRIMITIVE_T(qeh_uint32, std::uint32_t, qtype_hash::qh_uint32);
 
 #pragma endregion
 
 #pragma region 64-bit
 
-	#ifdef _WIN64
+QEXPAND_PRIMITIVE_T(qeh_int64, std::int64_t, qtype_hash::qh_int64);
 
-		class qeh_int64 {
-
-		private:
-
-#pragma region Encrypted value
-
-			qtype_hash::qh_int64 _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __regcall qeh_int64(imut std::int64_t value = 0) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__optimized_dtor ~qeh_int64() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline std::int64_t __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::int64_t));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::int64_t));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut std::int64_t value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::int64_t));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<std::int64_t*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_int64 __regcall operator+(imut std::int64_t value) imut nex {
-				return qeh_int64(get() + value);
-			};
-
-			__compelled_inline qeh_int64 __regcall operator-(imut std::int64_t value) imut nex {
-				return qeh_int64(get() - value);
-			}
-
-			__compelled_inline qeh_int64 __regcall operator/(imut std::int64_t value) imut nex {
-				return qeh_int64(get() / value);
-			}
-
-			__compelled_inline qeh_int64 __regcall operator*(imut std::int64_t value) imut nex {
-				return qeh_int64(get() * value);
-			}
-
-			__compelled_inline qeh_int64 __regcall operator&(imut std::int64_t value) imut nex {
-				return qeh_int64(get() & value);
-			}
-
-			__compelled_inline qeh_int64 __regcall operator|(imut std::int64_t value) imut nex {
-				return qeh_int64(get() | value);
-			}
-
-			__compelled_inline qeh_int64 __regcall operator%(imut std::int64_t value) imut nex {
-				return qeh_int64(get() % value);
-			}
-
-			__compelled_inline qeh_int64 __regcall operator^(imut std::int64_t value) imut nex {
-				return qeh_int64(get() ^ value);
-			}
-
-			__compelled_inline qeh_int64 __regcall operator<<(imut std::int64_t value) imut nex {
-				return qeh_int64(get() << value);
-			}
-
-			__compelled_inline qeh_int64 __regcall operator>>(imut std::int64_t value) imut nex {
-				return qeh_int64(get() >> value);
-			}
-
-			__compelled_inline qeh_int64& __regcall operator+=(imut std::int64_t value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int64& __regcall operator-=(imut std::int64_t value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int64& __stackcall operator++() nex {
-				operator+=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_int64& __stackcall operator--() nex {
-				operator-=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_int64& __regcall operator*=(imut std::int64_t value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int64& __regcall operator/=(imut std::int64_t value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int64& __regcall operator%=(imut std::int64_t value) nex {
-				set(get() % value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int64& __regcall operator^=(imut std::int64_t value) nex {
-				set(get() ^ value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int64& __regcall operator&=(imut std::int64_t value) nex {
-				set(get() & value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int64& __regcall operator|=(imut std::int64_t value) nex {
-				set(get() | value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int64& __regcall operator<<=(imut std::int64_t value) nex {
-				set(get() << value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int64& __regcall operator>>=(imut std::int64_t value) nex {
-				set(get() >> value);
-				return *this;
-			}
-
-			__compelled_inline qeh_int64& __regcall operator=(imut std::int64_t value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator std::int64_t() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
-
-		class qeh_uint64 {
-		private:
-
-#pragma region Encrypted value
-
-			qtype_hash::qh_uint64 _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __regcall qeh_uint64(imut std::uint64_t value = 0) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__optimized_dtor ~qeh_uint64() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline std::uint64_t __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::uint64_t));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::uint64_t));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut std::uint64_t value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(std::uint64_t));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<std::uint64_t*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_uint64 __regcall operator+(imut std::uint64_t value) imut nex {
-				return qeh_uint64(get() + value);
-			};
-
-			__compelled_inline qeh_uint64 __regcall operator-(imut std::uint64_t value) imut nex {
-				return qeh_uint64(get() - value);
-			}
-
-			__compelled_inline qeh_uint64 __regcall operator/(imut std::uint64_t value) imut nex {
-				return qeh_uint64(get() / value);
-			}
-
-			__compelled_inline qeh_uint64 __regcall operator*(imut std::uint64_t value) imut nex {
-				return qeh_uint64(get() * value);
-			}
-
-			__compelled_inline qeh_uint64 __regcall operator&(imut std::uint64_t value) imut nex {
-				return qeh_uint64(get() & value);
-			}
-
-			__compelled_inline qeh_uint64 __regcall operator|(imut std::uint64_t value) imut nex {
-				return qeh_uint64(get() | value);
-			}
-
-			__compelled_inline qeh_uint64 __regcall operator%(imut std::uint64_t value) imut nex {
-				return qeh_uint64(get() % value);
-			}
-
-			__compelled_inline qeh_uint64 __regcall operator^(imut std::uint64_t value) imut nex {
-				return qeh_uint64(get() ^ value);
-			}
-
-			__compelled_inline qeh_uint64 __regcall operator<<(imut std::uint64_t value) imut nex {
-				return qeh_uint64(get() << value);
-			}
-
-			__compelled_inline qeh_uint64 __regcall operator>>(imut std::uint64_t value) imut nex {
-				return qeh_uint64(get() >> value);
-			}
-
-			__compelled_inline qeh_uint64& __regcall operator+=(imut std::uint64_t value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint64& __regcall operator-=(imut std::uint64_t value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint64& __stackcall operator++() nex {
-				operator+=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint64& __stackcall operator--() nex {
-				operator-=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint64& __regcall operator*=(imut std::uint64_t value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint64& __regcall operator/=(imut std::uint64_t value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint64& __regcall operator%=(imut std::uint64_t value) nex {
-				set(get() % value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint64& __regcall operator^=(imut std::uint64_t value) nex {
-				set(get() ^ value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint64& __regcall operator&=(imut std::uint64_t value) nex {
-				set(get() & value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint64& __regcall operator|=(imut std::uint64_t value) nex {
-				set(get() | value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint64& __regcall operator<<=(imut std::uint64_t value) nex {
-				set(get() << value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint64& __regcall operator>>=(imut std::uint64_t value) nex {
-				set(get() >> value);
-				return *this;
-			}
-
-			__compelled_inline qeh_uint64& __regcall operator=(imut std::uint64_t value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator std::uint64_t() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
-
-	#endif
+QEXPAND_PRIMITIVE_T(qeh_uint64, std::uint64_t, qtype_hash::qh_uint64);
 
 #pragma endregion
 
 #pragma endregion
+
+#pragma region Other Primitive Types
+// This will define Unnecessary / Non-standard functions for Boolean - Just don't use them. No one adds / subs Booleans Anyways
+QEXPAND_PRIMITIVE_T(qeh_bool, bool, qtype_hash::qh_bool);
+
+#pragma endregion
+
+#undef QEXPAND_PRIMITIVE_T
 
 #pragma region Floating Point
 
 #pragma region 32-bit
 
-		class qeh_float {
-
-		private:
-
-#pragma region Encrypted value
-
-			qtype_hash::qh_float _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __fpcall qeh_float(imut float value = 0.f) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-			__optimized_dtor ~qeh_float() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline float __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(float));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(float));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut float value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(float));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<float*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_float __regcall operator+(imut float value) imut nex {
-				return qeh_float(get() + value);
-			};
-
-			__compelled_inline qeh_float __regcall operator-(imut float value) imut nex {
-				return qeh_float(get() - value);
-			}
-
-			__compelled_inline qeh_float __regcall operator/(imut float value) imut nex {
-				return qeh_float(get() / value);
-			}
-
-			__compelled_inline qeh_float __regcall operator*(imut float value) imut nex {
-				return qeh_float(get() * value);
-			}
-
-			__compelled_inline qeh_float& __regcall operator+=(imut float value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_float& __regcall operator-=(imut float value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_float& __stackcall operator++() nex {
-				operator+=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_float& __stackcall operator--() nex {
-				operator-=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_float& __regcall operator*=(imut float value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_float& __regcall operator/=(imut float value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-			__compelled_inline qeh_float& __regcall operator=(imut float value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator float() imut nex {
-				return get();
-			}
-
-#pragma endregion
-
-		};
+QEXPAND_PRECISION_T(qeh_float, float, qtype_hash::qh_float);
 
 #pragma endregion
 
 #pragma region 64-bit
 
-#ifdef _WIN64
+QEXPAND_PRECISION_T(qeh_double, double, qtype_hash::qh_double);
 
-		class qeh_double {
-
-		private:
-
-#pragma region Encrypted value
-
-			qtype_hash::qh_double _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __fpcall qeh_double(double value = static_cast<double>(0.f)) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__optimized_dtor ~qeh_double() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
+QEXPAND_PRECISION_T(qeh_longdouble, long double, qtype_hash::qh_longdouble);
 
 #pragma endregion
 
 #pragma endregion
 
-#pragma region Accessors
-
-			__compelled_inline double __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(double));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(double));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut double value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(double));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<double*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_double __regcall operator+(imut double value) imut nex {
-				return qeh_double(get() + value);
-			};
-
-			__compelled_inline qeh_double __regcall operator-(imut double value) imut nex {
-				return qeh_double(get() - value);
-			}
-
-			__compelled_inline qeh_double __regcall operator/(imut double value) imut nex {
-				return qeh_double(get() / value);
-			}
-
-			__compelled_inline qeh_double __regcall operator*(imut double value) imut nex {
-				return qeh_double(get() * value);
-			}
-
-			__compelled_inline qeh_double& __regcall operator+=(imut double value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_double& __regcall operator-=(imut double value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_double& __stackcall operator++() nex {
-				operator+=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_double& __stackcall operator--() nex {
-				operator-=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_double& __regcall operator*=(imut double value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_double& __regcall operator/=(imut double value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-			__compelled_inline qeh_double& __regcall operator=(imut double value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator double() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
-
-class qeh_longdouble {
-
-		private:
-
-#pragma region Encrypted value
-
-			qtype_hash::qh_longdouble _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __fpcall qeh_longdouble(long double value = static_cast<long double>(0.f)) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__optimized_dtor ~qeh_longdouble() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline long double __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(long double));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(long double));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut long double value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(long double));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<long double*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_longdouble __regcall operator+(imut long double value) imut nex {
-				return qeh_longdouble(get() + value);
-			};
-
-			__compelled_inline qeh_longdouble __regcall operator-(imut long double value) imut nex {
-				return qeh_longdouble(get() - value);
-			}
-
-			__compelled_inline qeh_longdouble __regcall operator/(imut long double value) imut nex {
-				return qeh_longdouble(get() / value);
-			}
-
-			__compelled_inline qeh_longdouble __regcall operator*(imut long double value) imut nex {
-				return qeh_longdouble(get() * value);
-			}
-
-			__compelled_inline qeh_longdouble& __regcall operator+=(imut long double value) nex {
-				set(static_cast<double>(get() + value));
-				return *this;
-			}
-
-			__compelled_inline qeh_longdouble& __regcall operator-=(imut long double value) nex {
-				set(static_cast<double>(get() - value));
-				return *this;
-			}
-
-			__compelled_inline qeh_longdouble& __stackcall operator++() nex {
-				operator+=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_longdouble& __stackcall operator--() nex {
-				operator-=(1i8);
-				return *this;
-			}
-
-			__compelled_inline qeh_longdouble& __regcall operator*=(imut long double value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_longdouble& __regcall operator/=(imut long double value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-			__compelled_inline qeh_longdouble& __regcall operator=(imut long double value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator long double() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
-
-#endif
-
-#pragma endregion
-
-#pragma endregion
+#undef QEXPAND_PRECISION_T
 
 #pragma region Extended Types
 
-#pragma region SSE
+#pragma region SSE2
 
-	#ifdef __SSE__
-
-		class qeh_m128 {
-
-		private:
-
-#pragma region Globals
-
-			qtype_hash::qh_m128 _value;
+QEXPAND_VECTOR_T(qeh_m128i, __m128i, _mm_store_si128, qtype_hash::qh_m128i);
 
 #pragma endregion
 
-		public:
+#ifndef QDISABLE_EXTENDED_TYPES
 
-#pragma region Ctor / Dtor
+#ifndef QDISABLE_AVX2_TYPES
 
-			__compelled_inline __fpcall qeh_m128(imut __m128 value) nex  {
+#pragma region AVX2
 
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__optimized_dtor ~qeh_m128() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
+QEXPAND_VECTOR_T(qeh_m256i, __m256i, _mm256_store_si256, qtype_hash::qh_m256i);
 
 #pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline __m128 __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m128));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m128));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut __m128 value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m128));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<__m128*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-	#ifdef __clang__
-
-			__compelled_inline qeh_m128 __fpcall operator+(imut __m128 value) imut nex {
-				return qeh_m128(get() + value);
-			};
-
-			__compelled_inline qeh_m128 __fpcall operator-(imut __m128 value) imut nex {
-				return qeh_m128(get() - value);
-			}
-
-			__compelled_inline qeh_m128 __fpcall operator/(imut __m128 value) imut nex {
-				return qeh_m128(get() / value);
-			}
-
-			__compelled_inline qeh_m128 __fpcall operator*(imut __m128 value) imut nex {
-				return qeh_m128(get() * value);
-			}
-
-			__compelled_inline qeh_m128& __fpcall operator+=(imut __m128 value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m128& __fpcall operator-=(imut __m128 value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m128& __fpcall operator*=(imut __m128 value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m128& __fpcall operator/=(imut __m128 value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-	#endif
-
-			__compelled_inline qeh_m128& __fpcall operator=(imut __m128 value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator __m128() imut nex {
-				return get();
-			}
-
-#pragma endregion
-
-		};
-
-	#ifdef __SSE2__
-
-		class qeh_m128i {
-
-		private:
-
-#pragma region Globals
-
-			qtype_hash::qh_m128i _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __fpcall qeh_m128i(imut __m128i value) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__optimized_dtor ~qeh_m128i() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline __m128i __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m128i));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m128i));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut __m128i value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m128i));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<__m128i*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-#ifdef __clang__
-
-			__compelled_inline qeh_m128i __fpcall operator+(imut __m128i value) imut nex {
-				return qeh_m128i(get() + value);
-			};
-
-			__compelled_inline qeh_m128i __fpcall operator-(imut __m128i value) imut nex {
-				return qeh_m128i(get() - value);
-			}
-
-			__compelled_inline qeh_m128i __fpcall operator/(imut __m128i value) imut nex {
-				return qeh_m128i(get() / value);
-			}
-
-			__compelled_inline qeh_m128i __fpcall operator*(imut __m128i value) imut nex {
-				return qeh_m128i(get() * value);
-			}
-
-			__compelled_inline qeh_m128i& __fpcall operator+=(imut __m128i value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m128i& __fpcall operator-=(imut __m128i value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m128i& __fpcall operator*=(imut __m128i value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m128i& __fpcall operator/=(imut __m128i value) nex {
-				set(get() / value);
-				return *this;
-			}
 
 #endif
 
-			__compelled_inline qeh_m128i& __fpcall operator=(imut __m128i value) nex {
-				set(value);
-				return *this;
-			}
+#ifndef QDISABLE_AVX512F_TYPES
 
-			__compelled_inline __stackcall operator __m128i() imut nex {
-				return get();
-			}
+#pragma region AVX512f
+
+QEXPAND_VECTOR_T(qeh_m512i, __m512i, _mm512_store_si512, qtype_hash::qh_m512i);
 
 #pragma endregion
-
-		};
-
-		class qeh_m128d {
-
-		private:
-
-#pragma region Globals
-
-			qtype_hash::qh_m128d _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __fpcall qeh_m128d(imut __m128d value) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-			__optimized_dtor ~qeh_m128d() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline __m128d __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m128d));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m128d));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut __m128d value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m128d));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<__m128d*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-#ifdef __clang__
-
-			__compelled_inline qeh_m128d __fpcall operator+(imut __m128d value) imut nex {
-				return qeh_m128d(get() + value);
-			};
-
-			__compelled_inline qeh_m128d __fpcall operator-(imut __m128d value) imut nex {
-				return qeh_m128d(get() - value);
-			}
-
-			__compelled_inline qeh_m128d __fpcall operator/(imut __m128d value) imut nex {
-				return qeh_m128d(get() / value);
-			}
-
-			__compelled_inline qeh_m128d __fpcall operator*(imut __m128d value) imut nex {
-				return qeh_m128d(get() * value);
-			}
-
-			__compelled_inline qeh_m128d& __fpcall operator+=(imut __m128d value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m128d& __fpcall operator-=(imut __m128d value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m128d& __fpcall operator*=(imut __m128d value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m128d& __fpcall operator/=(imut __m128d value) nex {
-				set(get() / value);
-				return *this;
-			}
 
 #endif
 
-			__compelled_inline qeh_m128d& __fpcall operator=(imut __m128d value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator __m128d() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
-
-	#endif
-
-	#endif
-
-#pragma endregion
-
-#pragma region AVX
-
-	#ifdef __AVX__
-
-		class qeh_m256 {
-
-		private:
-
-#pragma region Globals
-
-			qtype_hash::qh_m256 _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __fpcall qeh_m256(imut __m256 value) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__optimized_dtor ~qeh_m256() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline __m256 __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m256));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m256));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut __m256 value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m256));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<__m256*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-#ifdef __clang__
-
-			__compelled_inline qeh_m256 __fpcall operator+(imut __m256 value) imut nex {
-				return qeh_m256(get() + value);
-			};
-
-			__compelled_inline qeh_m256 __fpcall operator-(imut __m256 value) imut nex {
-				return qeh_m256(get() - value);
-			}
-
-			__compelled_inline qeh_m256 __fpcall operator/(imut __m256 value) imut nex {
-				return qeh_m256(get() / value);
-			}
-
-			__compelled_inline qeh_m256 __fpcall operator*(imut __m256 value) imut nex {
-				return qeh_m256(get() * value);
-			}
-
-			__compelled_inline qeh_m256& __fpcall operator+=(imut __m256 value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m256& __fpcall operator-=(imut __m256 value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m256& __fpcall operator*=(imut __m256 value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m256& __fpcall operator/=(imut __m256 value) nex {
-				set(get() / value);
-				return *this;
-			}
-
 #endif
 
-			__compelled_inline qeh_m256& __fpcall operator=(imut __m256 value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator __m256() imut nex {
-				return get();
-			}
-#pragma endregion
-		};
-
-		class qeh_m256i {
-		private:
-
-#pragma region Globals
-
-			qtype_hash::qh_m256i _value;
-
 #pragma endregion
 
-		public:
+#undef QEXPAND_VECTOR_T
 
-#pragma region Ctor / Dtor
-
-			__compelled_inline __fpcall qeh_m256i(imut __m256i value) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__optimized_dtor ~qeh_m256i() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline __m256i __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m256i));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m256i));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut __m256i value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m256i));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<__m256i*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-#ifdef __clang__
-
-			__compelled_inline qeh_m256i __fpcall operator+(imut __m256i value) imut nex {
-				return qeh_m256i(get() + value);
-			};
-
-			__compelled_inline qeh_m256i __fpcall operator-(imut __m256i value) imut nex {
-				return qeh_m256i(get() - value);
-			}
-
-			__compelled_inline qeh_m256i __fpcall operator/(imut __m256i value) imut nex {
-				return qeh_m256i(get() / value);
-			}
-
-			__compelled_inline qeh_m256i __fpcall operator*(imut __m256i value) imut nex {
-				return qeh_m256i(get() * value);
-			}
-
-			__compelled_inline qeh_m256i& __fpcall operator+=(imut __m256i value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m256i& __fpcall operator-=(imut __m256i value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m256i& __fpcall operator*=(imut __m256i value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m256i& __fpcall operator/=(imut __m256i value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-#endif
-
-			__compelled_inline qeh_m256i& __fpcall operator=(imut __m256i value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator __m256i() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
-
-		class qeh_m256d {
-
-		private:
-
-#pragma region Globals
-
-			qtype_hash::qh_m256d _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __fpcall qeh_m256d(imut __m256d value) nex  {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-			__optimized_dtor ~qeh_m256d() nex {
-				polyc::unregister_polyc_pointer(_value.open_data_ptr());
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline __m256d __stackcall get() imut nex {
-
-				// Invoke get() accessor to memcmp checksums, as checksums are for ciphertext, this must happen before open_data_ptr() is called
-				auto value = _value.get();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m256d));
-
-				value = *_value.open_data_ptr();
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m256d));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __regcall set(imut __m256d value) nex {
-
-				*_value.open_data_ptr() = value;
-
-				qengine::polyc::algo(_value.open_data_ptr(), sizeof(__m256d));
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() imut nex {
-				return _value.open_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<__m256d*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-#ifdef __clang__
-
-			__compelled_inline qeh_m256d __fpcall operator+(imut __m256d value) imut nex {
-				return qeh_m256d(get() + value);
-			};
-
-			__compelled_inline qeh_m256d __fpcall operator-(imut __m256d value) imut nex {
-				return qeh_m256d(get() - value);
-			}
-
-			__compelled_inline qeh_m256d __fpcall operator/(imut __m256d value) imut nex {
-				return qeh_m256d(get() / value);
-			}
-
-			__compelled_inline qeh_m256d __fpcall operator*(imut __m256d value) imut nex {
-				return qeh_m256d(get() * value);
-			}
-
-			__compelled_inline qeh_m256d& __fpcall operator+=(imut __m256d value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m256d& __fpcall operator-=(imut __m256d value) nex {
-				set(get() - value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m256d& __fpcall operator*=(imut __m256d value) nex {
-				set(get() * value);
-				return *this;
-			}
-
-			__compelled_inline qeh_m256d& __fpcall operator/=(imut __m256d value) nex {
-				set(get() / value);
-				return *this;
-			}
-
-#endif
-
-			__compelled_inline qeh_m256d& __fpcall operator=(imut __m256d value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator __m256d() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
-
-	#endif
-
-#pragma endregion
-
-#pragma endregion
-
-#pragma endregion
+#pragma region String Types
 
 #pragma region String
 
-		class qeh_string {
-
-		private:
-
-#pragma region Encrypted value
-
-			qtype_hash::qh_string _value;
-
-#pragma endregion
-
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __stackcall qeh_string(imut std::string value) nex {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__optimized_ctor qeh_string(imut char* value = "") {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__compelled_inline __stackcall ~qeh_string() nex { 
-				
-				polyc::unregister_polyc_pointer(reinterpret_cast<c_void>( imut_cast<char*>(_value.open_data_ptr()) ));
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline std::string __stackcall get() imut nex {
-				
-				auto value = _value.get();
-
-				qengine::polyc::algo(imut_cast<char*>(_value.open_data_ptr()), _value.get().length());
-
-				value = *_value.open_str_ptr();
-
-				qengine::polyc::algo(imut_cast<char*>(_value.open_data_ptr()), _value.get().length());
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __stackcall set(imut std::string value) nex {
-				
-				*_value.open_str_ptr() = value;
-
-				return qengine::polyc::algo(imut_cast<char*>(_value.open_data_ptr()), _value.get().length());
-
-				return _value.close_data_ptr();
-			}
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() nex {
-				return imut_cast<char*>(_value.open_data_ptr());
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<char*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_string __stackcall operator+(imut std::string& value) imut nex {
-				return qeh_string(get() + value);
-			}
-
-			__compelled_inline qeh_string& __stackcall operator+=(imut std::string& value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_string& __stackcall operator=(imut std::string value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator std::string() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
+QEXPAND_STRING_T(qeh_string, std::string, qtype_hash::qh_string, char, (const char*));
 
 #pragma endregion
 
 #pragma region Wide String
 
-		class qeh_wstring {
-
-		private:
-
-#pragma region Encrypted value
-
-			qtype_hash::qh_wstring _value;
+QEXPAND_STRING_T(qeh_wstring, std::wstring, qtype_hash::qh_wstring, wchar_t, L);
 
 #pragma endregion
 
-		public:
-
-#pragma region Ctor / Dtor
-
-			__compelled_inline __stackcall qeh_wstring(imut std::wstring value) nex {
-
-				if (!is_init)
-					init_qtype_hash();
-
-				set(value);
-			}
-
-			__compelled_inline __stackcall ~qeh_wstring() nex {
-				
-				polyc::unregister_polyc_pointer(reinterpret_cast<c_void>( imut_cast<wchar_t*>(_value.open_data_ptr()) ));
-			}
-
-#pragma endregion
-
-#pragma region Accessors
-
-			__compelled_inline std::wstring __stackcall get() imut nex {
-
-				auto value = _value.get();
-
-				qengine::polyc::algo(imut_cast<wchar_t*>(_value.open_data_ptr()), _value.get().length() * sizeof(wchar_t));
-
-				value = *_value.open_wstr_ptr();
-
-				qengine::polyc::algo(imut_cast<wchar_t*>(_value.open_data_ptr()), _value.get().length() * sizeof(wchar_t));
-
-				_value.close_data_ptr();
-
-				return value;
-			}
-
-			__compelled_inline bool __stackcall set(imut std::wstring value) nex {
-
-				*_value.open_wstr_ptr() = value;
-
-				return qengine::polyc::algo(imut_cast<wchar_t*>(_value.open_data_ptr()), _value.get().length() * sizeof(wchar_t));
-
-				return _value.close_data_ptr();
-			}
-
-
-			__compelled_inline imut c_void __stackcall open_data_ptr() nex {
-				return imut_cast<wchar_t*>(_value.open_data_ptr());
-			}
-
-			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
-				return imut_cast<wchar_t*>(_value.get_raw_memory_address());
-			}
-
-#pragma endregion
-
-#pragma region Operators
-
-			__compelled_inline qeh_wstring __stackcall operator+(imut std::wstring& value) imut nex {
-				return qeh_wstring(get() + value);
-			}
-
-			__compelled_inline qeh_wstring& __stackcall operator+=(imut std::wstring& value) nex {
-				set(get() + value);
-				return *this;
-			}
-
-			__compelled_inline qeh_wstring& __stackcall operator=(imut std::wstring& value) nex {
-				set(value);
-				return *this;
-			}
-
-			__compelled_inline __stackcall operator std::wstring() imut nex {
-				return get();
-			}
-
-#pragma endregion
-		};
+#undef QEXPAND_STRING_T
 
 #pragma endregion
 
@@ -3035,14 +1104,18 @@ class qeh_longdouble {
 
 #pragma region Globals
 
-			qtype_hash::qh_malloc allocation;
+			mut qtype_hash::qh_malloc allocation;
+
+			mut std::recursive_mutex mtx;
+
+			volatile bool is_ctor_lock = true;
 
 #pragma endregion
 
 #pragma region Subscript proxy
 
 			// nested class to support subscript assignment
-			class index_proxy {
+			class index_proxyEH {
 
 			private:
 
@@ -3057,7 +1130,7 @@ class qeh_longdouble {
 			public:
 #pragma region Ctor
 
-				index_proxy(std::size_t index_, qeh_malloc& instance) nex : index(index_), parent(instance) { }
+				index_proxyEH(std::size_t index_, qeh_malloc& instance) nex : index(index_), parent(instance) { }
 
 #pragma endregion
 
@@ -3083,8 +1156,17 @@ class qeh_longdouble {
 
 #pragma region Ctor
 
-			__compelled_inline __regcall qeh_malloc( imut std::size_t size ) nex : allocation(size) {
-				if (!size)
+			__compelled_inline __regcall qeh_malloc( 
+				
+				imut std::size_t	len,
+
+				imut c_void			src = nullptr
+			
+			) nex : allocation(len, src) {
+
+				std::lock_guard<std::recursive_mutex> lock(mtx);
+
+				if (!len)
 					return;
 
 				if (!is_init)
@@ -3093,64 +1175,54 @@ class qeh_longdouble {
 				if (!allocation.open_data_ptr())
 					return;
 
+				set(src, 0, len);
+
+				is_ctor_lock = false;
 			}
 
 #pragma endregion
 
 #pragma region Get Accessors
 
-			__compelled_inline imut bool __regcall get(imut std::uintptr_t source_position, c_void destination, imut std::size_t length) imut nex {
+			__compelled_inline imut bool __regcall get(
+				
+				c_void dst,
 
-				if (!destination || !length)
+				imut std::uintptr_t pos, 
+								
+				imut std::size_t len
+
+			) imut nex {
+
+				if(!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
+				if (!dst || !len)
 					return false;
 
-				qengine::polyc::algo(imut_cast<c_void>(allocation.open_data_ptr()), allocation.length(), false);
+				if (!qcipher_provider::cipher_decrypt_range(dst, allocation.open_data_ptr(), pos, len))
+					return false;
 
-				allocation.get(destination, source_position, length);
+				if (!qcipher_provider::cipher_encrypt_range(reinterpret_cast<std::uint8_t*>(allocation.open_data_ptr()) + pos, allocation.open_data_ptr(), pos, len))
+					return false;
 
-				qengine::polyc::algo(imut_cast<c_void>(allocation.open_data_ptr()), allocation.length(), false);
-
-				allocation.close_data_ptr();
-
-				return true;
+				return allocation.close_data_ptr();
 			}
 
-			__compelled_inline c_void __regcall get( imut std::uintptr_t position, imut std::uintptr_t length ) nex {
+			__compelled_inline std::uint8_t __regcall get( imut std::uintptr_t pos ) imut nex {
 
-				if (!length)
-					return nullptr;
+				std::uint8_t rbyte = NULL;
 
-				auto* result = malloc(length);
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
 
-				if (!result)
-					return nullptr;
+				get(&rbyte, pos, sizeof(std::uint8_t));
 
-				get(position, result, length);
-			}
-
-			__compelled_inline std::uint8_t __regcall get( imut std::uintptr_t position ) imut nex {
-
-				std::uint8_t _return = NULL;
-
-				get(position, &_return, sizeof(_return));
-
-				return _return;
-			}
-
-			__compelled_inline c_void __regcall get() imut nex {
-
-				auto* result = malloc( allocation.length() );
-
-				if (!result)
-					return nullptr;
-
-				if (!get(0, result, allocation.length()))
-					return nullptr;
-
-				return result;
+				return rbyte;
 			}
 
 			__compelled_inline imut c_void __stackcall get_raw_memory_address() imut nex {
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
 				return allocation.get_raw_memory_address();
 			}
 
@@ -3158,25 +1230,35 @@ class qeh_longdouble {
 
 #pragma region Set Accessors
 
-			__compelled_inline imut bool __regcall set( imut std::uintptr_t position, c_void data, imut std::size_t length) nex {
+			__compelled_inline imut bool __regcall set( 
 
-				if (!data || !length)
+				c_void src,
+				
+				imut std::uintptr_t pos, 
+				
+				imut std::size_t len
+			
+			) nex {
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
+				if (!src || !len)
 					return false;
 
-				qengine::polyc::algo(imut_cast<c_void>(allocation.open_data_ptr()), allocation.length(), false);
+				accelmem::a_memcpy(reinterpret_cast<std::uint8_t*>(allocation.open_data_ptr()) + pos, src, len);
 
-				memcpy((c_void)(reinterpret_cast<std::uintptr_t>(allocation.open_data_ptr()) + position), data, length);
+				if (!qcipher_provider::cipher_encrypt_range(reinterpret_cast<std::uint8_t*>(allocation.open_data_ptr()) + pos, allocation.open_data_ptr(), pos, len))
+					return false;
 
-				qengine::polyc::algo(imut_cast<c_void>(allocation.open_data_ptr()), allocation.length(), false);
-
-				allocation.close_data_ptr();
-
-				return true;
+				return allocation.close_data_ptr();
 			}
 
 			template<typename T>
-			__compelled_inline void __regcall set( imut std::uintptr_t position, T value ) nex {
-				set(position, &value, sizeof(decltype(value)));
+			__compelled_inline void __regcall set( imut std::uintptr_t pos, T value ) nex {
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
+				set(&value, pos, sizeof(decltype(value)));
 			}
 
 #pragma endregion
@@ -3185,31 +1267,14 @@ class qeh_longdouble {
 
 			__compelled_inline void __regcall reallocate( imut std::size_t size ) nex {
 
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
 				allocation.reallocate(size);
 			}
 
-			__compelled_inline imut bool __regcall swap(c_void allocation_, imut std::size_t size, imut bool free_source = false) nex {
-				if (!size)
-					return false;
-
-				c_void enc_alloc = malloc(size);
-
-				if (!enc_alloc)
-					return false;
-
-				memcpy(enc_alloc, allocation_, size);
-
-				qengine::polyc::algo(enc_alloc, size, false);
-
-				if (free_source)
-					free(allocation_);
-
-				allocation.swap(enc_alloc, size);
-
-				return true;
-			}
-
 			__compelled_inline imut c_void open_data_ptr() nex {
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
 
 				return allocation.open_data_ptr();
 			}
@@ -3218,8 +1283,60 @@ class qeh_longdouble {
 
 #pragma region Operators
 
-			__compelled_inline index_proxy __regcall operator[]( imut std::size_t index ) nex {
-				return index_proxy(index, *this);
+			__compelled_inline index_proxyEH __regcall operator[]( imut std::size_t index ) nex {
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
+				return index_proxyEH(index, *this);
+			}
+
+#pragma endregion
+
+#pragma region Deleted Ctors && Move-Copy Operators
+
+			__compelled_inline qeh_malloc(const qeh_malloc& other) noexcept : allocation(0u, nullptr, true) {
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
+				if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx);
+
+				allocation = other.allocation;
+
+				is_ctor_lock = false;
+			}
+			__compelled_inline qeh_malloc& operator=(qeh_malloc& other) noexcept {
+
+				if (this == &other) return *this;
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
+				if (!other.is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(other.mtx);
+
+				allocation = other.allocation;
+
+				is_ctor_lock = false;
+
+				return *this;
+			}
+			__compelled_inline qeh_malloc(qeh_malloc&& other) noexcept : allocation(0u, nullptr, true) {
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
+				allocation = std::move(other.allocation);
+
+				is_ctor_lock = false;
+			}
+			__compelled_inline qeh_malloc& operator=(qeh_malloc&& other) noexcept {
+
+				if (this == &other) return *this;
+
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
+
+				allocation = std::move(other.allocation);
+
+				is_ctor_lock = false;
+
+				return *this;
 			}
 
 #pragma endregion
@@ -3228,7 +1345,7 @@ class qeh_longdouble {
 
 			__compelled_inline ~qeh_malloc() nex {
 				
-				polyc::unregister_polyc_pointer(allocation.open_data_ptr());
+				if (!is_ctor_lock) std::lock_guard<std::recursive_mutex> lock(mtx);
 			}
 
 #pragma endregion
@@ -3257,12 +1374,6 @@ class qeh_longdouble {
 	} 
 
 }
-
-#pragma endregion
-
-#pragma region Static Declarators
-
-	bool qengine::qtype_enchash::is_init = false;
 
 #pragma endregion
 

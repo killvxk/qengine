@@ -1,6 +1,6 @@
 // This file is part of AsmJit project <https://asmjit.com>
 //
-// See asmjit.h or LICENSE.md for license and copyright information
+// See <asmjit/core.h> or LICENSE.md for license and copyright information
 // SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_ARM_ARMFORMATTER_P_H_INCLUDED
@@ -32,6 +32,31 @@ Error ASMJIT_CDECL formatCondCode(
 Error ASMJIT_CDECL formatShiftOp(
   String& sb,
   ShiftOp shiftOp) noexcept;
+
+Error ASMJIT_CDECL formatRegister(
+  String& sb,
+  FormatFlags flags,
+  const BaseEmitter* emitter,
+  Arch arch,
+  RegType regType,
+  uint32_t rId,
+  uint32_t elementType = 0,
+  uint32_t elementIndex = 0xFFFFFFFF) noexcept;
+
+Error ASMJIT_CDECL formatRegisterList(
+  String& sb,
+  FormatFlags flags,
+  const BaseEmitter* emitter,
+  Arch arch,
+  RegType regType,
+  uint32_t rMask) noexcept;
+
+Error ASMJIT_CDECL formatOperand(
+  String& sb,
+  FormatFlags flags,
+  const BaseEmitter* emitter,
+  Arch arch,
+  const Operand_& op) noexcept;
 
 } // {FormatterInternal}
 

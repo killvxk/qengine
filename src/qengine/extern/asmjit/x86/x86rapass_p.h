@@ -1,6 +1,6 @@
 // This file is part of AsmJit project <https://asmjit.com>
 //
-// See asmjit.h or LICENSE.md for license and copyright information
+// See <asmjit/core.h> or LICENSE.md for license and copyright information
 // SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_X86_X86RAPASS_P_H_INCLUDED
@@ -28,15 +28,20 @@ ASMJIT_BEGIN_SUB_NAMESPACE(x86)
 class X86RAPass : public BaseRAPass {
 public:
   ASMJIT_NONCOPYABLE(X86RAPass)
-  typedef BaseRAPass Base;
+  using Base = BaseRAPass;
+
+  //! \name Members
+  //! \{
 
   EmitHelper _emitHelper;
+
+  //! \}
 
   //! \name Construction & Destruction
   //! \{
 
   X86RAPass() noexcept;
-  virtual ~X86RAPass() noexcept;
+  ~X86RAPass() noexcept override;
 
   //! \}
 
@@ -44,20 +49,26 @@ public:
   //! \{
 
   //! Returns the compiler casted to `x86::Compiler`.
-  inline Compiler* cc() const noexcept { return static_cast<Compiler*>(_cb); }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG Compiler* cc() const noexcept { return static_cast<Compiler*>(_cb); }
 
   //! Returns emit helper.
-  inline EmitHelper* emitHelper() noexcept { return &_emitHelper; }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG EmitHelper* emitHelper() noexcept { return &_emitHelper; }
 
-  inline bool avxEnabled() const noexcept { return _emitHelper._avxEnabled; }
-  inline bool avx512Enabled() const noexcept { return _emitHelper._avx512Enabled; }
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool avxEnabled() const noexcept { return _emitHelper._avxEnabled; }
+
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG bool avx512Enabled() const noexcept { return _emitHelper._avx512Enabled; }
 
   //! \}
 
   //! \name Utilities
   //! \{
 
-  inline uint32_t choose(uint32_t sseInstId, uint32_t avxInstId) noexcept {
+  [[nodiscard]]
+  ASMJIT_INLINE_NODEBUG InstId choose(InstId sseInstId, InstId avxInstId) noexcept {
     return avxEnabled() ? avxInstId : sseInstId;
   }
 

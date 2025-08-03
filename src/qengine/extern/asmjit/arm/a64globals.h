@@ -1,6 +1,6 @@
 // This file is part of AsmJit project <https://asmjit.com>
 //
-// See asmjit.h or LICENSE.md for license and copyright information
+// See <asmjit/core.h> or LICENSE.md for license and copyright information
 // SPDX-License-Identifier: Zlib
 
 #ifndef ASMJIT_ARM_A64GLOBALS_H_INCLUDED
@@ -15,20 +15,18 @@
 
 ASMJIT_BEGIN_SUB_NAMESPACE(a64)
 
-// a64 uses everything from arm namespace and adds into it.
-using namespace arm;
-
 //! \addtogroup asmjit_a64
 //! \{
 
 //! AArch64 instruction.
 //!
 //! \note Only used to hold ARM-specific enumerations and static functions.
-struct Inst {
+namespace Inst {
   //! Instruction id.
   enum Id : uint32_t {
     // ${InstId:Begin}
     kIdNone = 0,                         //!< Instruction ''.
+    kIdAbs,                              //!< Instruction 'abs'.
     kIdAdc,                              //!< Instruction 'adc'.
     kIdAdcs,                             //!< Instruction 'adcs'.
     kIdAdd,                              //!< Instruction 'add'.
@@ -57,6 +55,7 @@ struct Inst {
     kIdAutizb,                           //!< Instruction 'autizb'.
     kIdAxflag,                           //!< Instruction 'axflag'.
     kIdB,                                //!< Instruction 'b'.
+    kIdBc,                               //!< Instruction 'bc'.
     kIdBfc,                              //!< Instruction 'bfc'.
     kIdBfi,                              //!< Instruction 'bfi'.
     kIdBfm,                              //!< Instruction 'bfm'.
@@ -67,6 +66,7 @@ struct Inst {
     kIdBlr,                              //!< Instruction 'blr'.
     kIdBr,                               //!< Instruction 'br'.
     kIdBrk,                              //!< Instruction 'brk'.
+    kIdBti,                              //!< Instruction 'bti'.
     kIdCas,                              //!< Instruction 'cas'.
     kIdCasa,                             //!< Instruction 'casa'.
     kIdCasab,                            //!< Instruction 'casab'.
@@ -88,8 +88,10 @@ struct Inst {
     kIdCcmn,                             //!< Instruction 'ccmn'.
     kIdCcmp,                             //!< Instruction 'ccmp'.
     kIdCfinv,                            //!< Instruction 'cfinv'.
+    kIdChkfeat,                          //!< Instruction 'chkfeat'.
     kIdCinc,                             //!< Instruction 'cinc'.
     kIdCinv,                             //!< Instruction 'cinv'.
+    kIdClrbhb,                           //!< Instruction 'clrbhb'.
     kIdClrex,                            //!< Instruction 'clrex'.
     kIdCls,                              //!< Instruction 'cls'.
     kIdClz,                              //!< Instruction 'clz'.
@@ -97,6 +99,7 @@ struct Inst {
     kIdCmp,                              //!< Instruction 'cmp'.
     kIdCmpp,                             //!< Instruction 'cmpp'.
     kIdCneg,                             //!< Instruction 'cneg'.
+    kIdCnt,                              //!< Instruction 'cnt'.
     kIdCrc32b,                           //!< Instruction 'crc32b'.
     kIdCrc32cb,                          //!< Instruction 'crc32cb'.
     kIdCrc32ch,                          //!< Instruction 'crc32ch'.
@@ -112,6 +115,7 @@ struct Inst {
     kIdCsinc,                            //!< Instruction 'csinc'.
     kIdCsinv,                            //!< Instruction 'csinv'.
     kIdCsneg,                            //!< Instruction 'csneg'.
+    kIdCtz,                              //!< Instruction 'ctz'.
     kIdDc,                               //!< Instruction 'dc'.
     kIdDcps1,                            //!< Instruction 'dcps1'.
     kIdDcps2,                            //!< Instruction 'dcps2'.
@@ -293,6 +297,7 @@ struct Inst {
     kIdPacdza,                           //!< Instruction 'pacdza'.
     kIdPacdzb,                           //!< Instruction 'pacdzb'.
     kIdPacga,                            //!< Instruction 'pacga'.
+    kIdPrfm,                             //!< Instruction 'prfm'.
     kIdPssbb,                            //!< Instruction 'pssbb'.
     kIdRbit,                             //!< Instruction 'rbit'.
     kIdRet,                              //!< Instruction 'ret'.
@@ -313,7 +318,9 @@ struct Inst {
     kIdSev,                              //!< Instruction 'sev'.
     kIdSevl,                             //!< Instruction 'sevl'.
     kIdSmaddl,                           //!< Instruction 'smaddl'.
+    kIdSmax,                             //!< Instruction 'smax'.
     kIdSmc,                              //!< Instruction 'smc'.
+    kIdSmin,                             //!< Instruction 'smin'.
     kIdSmnegl,                           //!< Instruction 'smnegl'.
     kIdSmsubl,                           //!< Instruction 'smsubl'.
     kIdSmulh,                            //!< Instruction 'smulh'.
@@ -431,6 +438,8 @@ struct Inst {
     kIdUdf,                              //!< Instruction 'udf'.
     kIdUdiv,                             //!< Instruction 'udiv'.
     kIdUmaddl,                           //!< Instruction 'umaddl'.
+    kIdUmax,                             //!< Instruction 'umax'.
+    kIdUmin,                             //!< Instruction 'umin'.
     kIdUmnegl,                           //!< Instruction 'umnegl'.
     kIdUmull,                            //!< Instruction 'umull'.
     kIdUmulh,                            //!< Instruction 'umulh'.
@@ -797,14 +806,14 @@ struct Inst {
   };
 
   //! Tests whether the `instId` is defined (counts also Inst::kIdNone, which must be zero).
-  static inline bool isDefinedId(InstId instId) noexcept { return (instId & uint32_t(InstIdParts::kRealId)) < _kIdCount; }
+  static ASMJIT_INLINE_NODEBUG bool isDefinedId(InstId instId) noexcept { return (instId & uint32_t(InstIdParts::kRealId)) < _kIdCount; }
 };
 
 namespace Predicate {
 
 //! Address translate options (AT).
 namespace AT {
-  static inline constexpr uint32_t encode(uint32_t op1, uint32_t cRn, uint32_t cRm, uint32_t op2) noexcept {
+  static ASMJIT_INLINE_CONSTEXPR uint32_t encode(uint32_t op1, uint32_t cRn, uint32_t cRm, uint32_t op2) noexcept {
     return (op1 << 11) | (cRn << 7) | (cRm << 3) | (op2 << 0);
   }
 
@@ -823,6 +832,17 @@ namespace AT {
     kS12E0W = encode(0b100, 0b0111, 0b1000, 0b111),
     kS1E1RP = encode(0b000, 0b0111, 0b1001, 0b000),
     kS1E1WP = encode(0b000, 0b0111, 0b1001, 0b001)
+  };
+}
+
+//! Branch target identification targets (BTI).
+namespace BTI {
+  //! Branch target identification targets
+  enum Value : uint32_t {
+    kNone = 0u,
+    kC = 1u,
+    kJ = 2u,
+    kJC = 3u
   };
 }
 
@@ -862,7 +882,7 @@ namespace DB {
 
 //! Data cache maintenance options.
 namespace DC {
-  static inline constexpr uint32_t encode(uint32_t op1, uint32_t cRn, uint32_t cRm, uint32_t op2) noexcept {
+  static ASMJIT_INLINE_CONSTEXPR uint32_t encode(uint32_t op1, uint32_t cRn, uint32_t cRm, uint32_t op2) noexcept {
     return (op1 << 11) | (cRn << 7) | (cRm << 3) | (op2 << 0);
   }
 
@@ -901,7 +921,7 @@ namespace DC {
 
 //! Instruction cache maintenance options.
 namespace IC {
-  static inline constexpr uint32_t encode(uint32_t op1, uint32_t cRn, uint32_t cRm, uint32_t op2) noexcept {
+  static ASMJIT_INLINE_CONSTEXPR uint32_t encode(uint32_t op1, uint32_t cRn, uint32_t cRm, uint32_t op2) noexcept {
     return (op1 << 11) | (cRn << 7) | (cRm << 3) | (op2 << 0);
   }
 
@@ -955,7 +975,7 @@ namespace PSB {
 }
 
 namespace TLBI {
-  static inline constexpr uint32_t encode(uint32_t op1, uint32_t cRn, uint32_t cRm, uint32_t op2) noexcept {
+  static ASMJIT_INLINE_CONSTEXPR uint32_t encode(uint32_t op1, uint32_t cRn, uint32_t cRm, uint32_t op2) noexcept {
     return (op1 << 11) | (cRn << 7) | (cRm << 3) | (op2 << 0);
   }
 
@@ -1054,7 +1074,7 @@ namespace TSB {
 //! Processor state access through MSR.
 namespace PState {
   //! Encodes a pstate from `op0` and `op1`.
-  static inline constexpr uint32_t encode(uint32_t op0, uint32_t op1) noexcept {
+  static ASMJIT_INLINE_CONSTEXPR uint32_t encode(uint32_t op0, uint32_t op1) noexcept {
     return (op0 << 3) | (op1 << 0);
   }
 
@@ -1083,17 +1103,17 @@ namespace SysReg {
   };
 
   //! Encodes a system register from `op0`, `op1`, `cRn`, `cRm`, and `op2` fields.
-  static inline constexpr uint32_t encode(uint32_t op0, uint32_t op1, uint32_t cRn, uint32_t cRm, uint32_t op2) noexcept {
+  static ASMJIT_INLINE_CONSTEXPR uint32_t encode(uint32_t op0, uint32_t op1, uint32_t cRn, uint32_t cRm, uint32_t op2) noexcept {
     return (op0 << 14) | (op1 << 11) | (cRn << 7) | (cRm << 3) | (op2 << 0);
   }
 
   //! Encodes a system register from `fields`.
-  static inline constexpr uint32_t encode(const Fields& fields) noexcept {
+  static ASMJIT_INLINE_CONSTEXPR uint32_t encode(const Fields& fields) noexcept {
     return encode(fields.op0, fields.op1, fields.cRn, fields.cRm, fields.op2);
   }
 
   //! Decodes a system register to \ref Fields.
-  static inline constexpr Fields decode(uint32_t id) noexcept {
+  static ASMJIT_INLINE_CONSTEXPR Fields decode(uint32_t id) noexcept {
     return Fields {
       uint8_t((id >> 14) & 0x3u),
       uint8_t((id >> 11) & 0x7u),
@@ -1417,9 +1437,12 @@ namespace SysReg {
     kID_AA64DFR1_EL1      = encode(0b11, 0b000, 0b0000, 0b0101, 0b001), // RO
     kID_AA64ISAR0_EL1     = encode(0b11, 0b000, 0b0000, 0b0110, 0b000), // RO
     kID_AA64ISAR1_EL1     = encode(0b11, 0b000, 0b0000, 0b0110, 0b001), // RO
+    kID_AA64ISAR2_EL1     = encode(0b11, 0b000, 0b0000, 0b0110, 0b010), // RO
     kID_AA64MMFR0_EL1     = encode(0b11, 0b000, 0b0000, 0b0111, 0b000), // RO
     kID_AA64MMFR1_EL1     = encode(0b11, 0b000, 0b0000, 0b0111, 0b001), // RO
     kID_AA64MMFR2_EL1     = encode(0b11, 0b000, 0b0000, 0b0111, 0b010), // RO
+    kID_AA64MMFR3_EL1     = encode(0b11, 0b000, 0b0000, 0b0111, 0b011), // RO
+    kID_AA64MMFR4_EL1     = encode(0b11, 0b000, 0b0000, 0b0111, 0b100), // RO
     kID_AA64PFR0_EL1      = encode(0b11, 0b000, 0b0000, 0b0100, 0b000), // RO
     kID_AA64PFR1_EL1      = encode(0b11, 0b000, 0b0000, 0b0100, 0b001), // RO
     kID_AA64ZFR0_EL1      = encode(0b11, 0b000, 0b0000, 0b0100, 0b100), // RO

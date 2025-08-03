@@ -1,6 +1,6 @@
 // This file is part of AsmJit project <https://asmjit.com>
 //
-// See asmjit.h or LICENSE.md for license and copyright information
+// See <asmjit/core.h> or LICENSE.md for license and copyright information
 // SPDX-License-Identifier: Zlib
 
 #include "../core/api-build_p.h"
@@ -24,48 +24,53 @@ Error JitRuntime::_add(void** dst, CodeHolder* code) noexcept {
   *dst = nullptr;
 
   ASMJIT_PROPAGATE(code->flatten());
-  ASMJIT_PROPAGATE(code->resolveUnresolvedLinks());
+  ASMJIT_PROPAGATE(code->resolveCrossSectionFixups());
 
   size_t estimatedCodeSize = code->codeSize();
-  if (ASMJIT_UNLIKELY(estimatedCodeSize == 0))
+  if (ASMJIT_UNLIKELY(estimatedCodeSize == 0)) {
     return DebugUtils::errored(kErrorNoCodeGenerated);
+  }
 
-  uint8_t* rx;
-  uint8_t* rw;
-  ASMJIT_PROPAGATE(_allocator.alloc((void**)&rx, (void**)&rw, estimatedCodeSize));
+  JitAllocator::Span span;
+  ASMJIT_PROPAGATE(_allocator.alloc(span, estimatedCodeSize));
 
   // Relocate the code.
-  Error err = code->relocateToBase(uintptr_t((void*)rx));
+  CodeHolder::RelocationSummary relocationSummary;
+  Error err = code->relocateToBase(uintptr_t(span.rx()), &relocationSummary);
   if (ASMJIT_UNLIKELY(err)) {
-    _allocator.release(rx);
+    _allocator.release(span.rx());
     return err;
   }
 
   // Recalculate the final code size and shrink the memory we allocated for it
   // in case that some relocations didn't require records in an address table.
-  size_t codeSize = code->codeSize();
-  if (codeSize < estimatedCodeSize)
-    _allocator.shrink(rx, codeSize);
+  size_t codeSize = estimatedCodeSize - relocationSummary.codeSizeReduction;
 
-  {
-    VirtMem::ProtectJitReadWriteScope rwScope(rx, codeSize);
+  // If not true it means that `relocateToBase()` filled wrong information in `relocationSummary`.
+  ASMJIT_ASSERT(codeSize == code->codeSize());
+
+  _allocator.write(span, [&](JitAllocator::Span& span) noexcept -> Error {
+    uint8_t* rw = static_cast<uint8_t*>(span.rw());
 
     for (Section* section : code->_sections) {
       size_t offset = size_t(section->offset());
       size_t bufferSize = size_t(section->bufferSize());
       size_t virtualSize = size_t(section->virtualSize());
 
-      ASMJIT_ASSERT(offset + bufferSize <= codeSize);
+      ASMJIT_ASSERT(offset + bufferSize <= span.size());
       memcpy(rw + offset, section->data(), bufferSize);
 
       if (virtualSize > bufferSize) {
-        ASMJIT_ASSERT(offset + virtualSize <= codeSize);
+        ASMJIT_ASSERT(offset + virtualSize <= span.size());
         memset(rw + offset + bufferSize, 0, virtualSize - bufferSize);
       }
     }
-  }
 
-  *dst = rx;
+    span.shrink(codeSize);
+    return kErrorOk;
+  });
+
+  *dst = span.rx();
   return kErrorOk;
 }
 
