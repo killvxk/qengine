@@ -114,9 +114,24 @@ a 128-bit streaming block-based algorithm w/ Notch and additional plaintext Data
 
 ### 🛠 **Public API Enhancements**
 - Added `pdfn`: Runtime function encryption using Windows Exception Handling.
+
+pdfn Encrypts Functions at Runtime (Specifically Start of Execution), and then, Dependent upon the Modality of pdfn, Invokes the Functions using Software Breakpoints + Windows SEH Vectored Exception Handler as the Delimiter / Mediator of the Encryption / Decryption routines,
+or in it's other Mode, Directly Decrypts the Function before Calling it and Manually Re-Encrypts it. 
+
+HIGHLY Recommended to stick with Windows VEH Mode.
+
 - Added `ghostcall`: Obscures function calls and addresses.
+  
+ghostcall uses Software Interrupt Breakpoints Hidden in the Interrrupt-Padded Region of Windows PE Files by Default to Invoke it's Mechanism (This can be Changed to use Dynamic Heap Allocations Instead if you wish ).
+The VEH Which is Triggered by the Breakpoint is the Segment which Redirects Control Flow to the Actual Target Function by Overriding the Instruction Pointer.
 - Added `ghostmut`: Indirects primitive operations (math, memcpy, memset).
+  
+ghostmut has a very similar Mechanism to ghostcall, Essentially the same infact - Except Inside the VEH, Primitive Math Operations or Primitive Memory Operations are Performed, instead of Invoking an Actual Function. The VEH is Handed the Arguments and Instruction Descriptor through Global States and the Total / Sum of the Operation is Likewise Returned through Global States;
+This may be Viewed as an Advanced Level of Indirection, and thus Obfuscation, or a Level of Pseudo-Virtualization short of an Actual Virtual Machine (Which i Actually Plan to Add to qengine in the somewhat near Future, in the Works as we speak)
 - `qhook_dtc` namespace updates (`qanalyze_fn_length`).
+
+
+***** WARNING: YOU CANNOT DEBUG YOUR APPLICATION WHEN PDFN / GHOSTCALL / GHOSTMUT IS ACTIVE. DEBUG YOUR BARE FUNCTIONS PRIOR TO IMPLEMENTING THESE OBJECTS SO YOU KNOW YOUR FUNCTION WORKS.
 
 ### 📂 **New Integrated Libraries**
 - **[accelmem](https://github.com/Chemiculs/accelmem)**: High-performance memory operations, encryption, CRC32 checksums.
@@ -149,7 +164,7 @@ PDFN_DIRECT_CALL(NTSTATUS, do_fn2, (L"pdfn_invoke1", L"pdfn_invoke1"));
 #### Standard PDFN (All Builds)
 
 ```cpp
-// Declare and implement via VEH
+// Declare and implement via VEH, Enclose Arguments inside own Paranthesis in the Prototype Declaration
 PD_FUNC(NTSTATUS, do_fn, (const char* a1, const char* a2) noexcept) {
     return MessageBoxA(nullptr, a1, a2, 0);
 }
@@ -168,6 +183,39 @@ auto prod = GHOSTMUT_INSN(x, y, GINSN_XOREQU);
 
 // Primitive memory comparison
 auto res = GHOSTMUT_MEMCMP(&x, &y, sizeof(std::uint32_t));
+```
+
+List of ALL Ghostmut Instructions Available:
+
+```cpp
+GINSN_ADDEQU (Assignment Instruction to Argument #1 lvalue)
+GINSN_SUB
+GINSN_SUBEQU (Assignment Instruction to Argument #1 lvalue)
+GINSN_DIV 
+GINSN_DIVEQU (Assignment Instruction to Argument #1 lvalue)
+GINSN_MUL
+GINSN_MULEQU (Assignment Instruction to Argument #1 lvalue)
+GINSN_MOD
+GINSN_MODEQU (Assignment Instruction to Argument #1 lvalue)
+GINSN_AND
+GINSN_ANDEQU (Assignment Instruction to Argument #1 lvalue)
+GINSN_OR
+GINSN_OREQU (Assignment Instruction to Argument #1 lvalue)
+GINSN_XOR
+GINSN_XOREQU (Assignment Instruction to Argument #1 lvalue)
+GINSN_SHL
+GINSN_SHLEQU (Assignment Instruction to Argument #1 lvalue)
+GINSN_SHR
+GINSN_SHREQU (Assignment Instruction to Argument #1 lvalue)
+GINSN_INC (Assignment Instruction to Argument #1 lvalue)
+GINSN_DEC (Assignment Instruction to Argument #1 lvalue)
+GINSN_NOT (Assignment Instruction to Argument #1 lvalue) 
+GINSN_MEMCPY (USE THROUGH THE MACRO GHOSTMUT_MEMCPY)
+GINSN_MEMMOVE (USE THROUGH THE MACRO GHOSTMUT_MEMMOVE)
+GINSN_MEMSET (USE THROUGH THE MACRO GHOSTMUT_MEMSET)
+GINSN_MEMCMP (USE THROUGH THE MACRO GHOSTMUT_MEMCMP)
+
+// the _VP Version of the Memory Operation Macros Include a VirtualProtect Call and Restore Operation within ghostmut's handler if wanted
 ```
 
 ### Ghostcall (Indirect Calls)
@@ -286,17 +334,18 @@ int main(){
 	{
 		MyString.ctor() 								<------ Inlined ->
 		MyString.set("Hello World!")							<------ Inlined ->
-		qengine::polyc::algorithm( MyString.std_string() )				<------ Inlined ->
-		qengine::polyc::register_polyc_pointer( MyString.std_string() )			<------ Inlined ->
-		qengine::polyc::internal_do_algo_subroutine( MyString.std_string() )		<------ Inlined
+		qengine::::qcipher_provider_interface( MyString.std_string() )			<------ Inlined  with subroutines ->
+		qengine::::polyc128 || aes128_ctr ::::encrypt( MyString.std_string() )		<------ Inlined with extensive subroutines 
 	}
 
 	std::cout << MyString.get() << std::endl;	EXPAND ---->
 	{
 		MyString.get()									<------ Inlined ->
-		qengine::polyc::algorithm( MyString.std_string() )				<------ Inlined
+		qengine::::qcipher_provider_interface( MyString.std_string() )			<------ Inlined  with subroutines ->
+		qengine::::polyc128 || aes128_ctr ::::decrypt( MyString.std_string() )		<------ Inlined with extensive subroutines  ->
 		std::cout << MyString.std_string() << std::endl;
-		qengine::polyc::algorithm( MyString.std_string() )				<------ Inlined
+		qengine::::qcipher_provider_interface( MyString.std_string() )			<------ Inlined  with subroutines ->
+		qengine::::polyc128 || aes128_ctr ::::encrypt( MyString.std_string() )		<------ Inlined with extensive subroutines 
 			
 	}
 
@@ -305,7 +354,7 @@ int main(){
 ```
 Keep in mind that the above example is only from basic initialization of one local qengine::string variable and one get() accessor invokation -
 
-Each get() and set() accessor call is compelled inline, and each math operation or manipulation of qengine::type variables calls get() and / or set() accessor, seeing as these are rather large functions to begin with, the compiler output can go as far as crashing modern disassemblers.
+Each get() and set() accessor call is inlined, and each math operation or manipulation of qengine::type variables calls get() and / or set() accessor, seeing as these are rather large functions to begin with, the compiler output can go as far as crashing modern disassemblers.
 
 </details>
 
