@@ -234,8 +234,8 @@ NTSTATUS result = GCALL_INVOKE(
 ## 📖 **Changelog Summary(Detailed)**
 
 ### 🔑 **Encryption Improvements:**
-- Introduced 128 as primary cipher.
-- Deprecated XOR except for explicit legacy calls / usage.
+- Introduced polyc128 as primary cipher.
+- Deprecated polycXOR except for explicit legacy calls / usage.
 - Added Inherent Base Type Polymorphism using cmut
 - Updated capstone and asmjit to newest Github Release versions
 - Updated SCRAMBLE_CRITICAL_CONDITION to Provide MUCH better Output w/ Polymorphic Types(cmut)
