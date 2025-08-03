@@ -14,7 +14,7 @@ qengine is a Header-Only, Highly Configurable, Compiler-Independent Binary Obfus
 • Added brand‑new **polyc128** block/stream cipher (128‑bit block, 10‑round key schedule).
 a 128-bit streaming block-based algorithm w/ Notch and additional plaintext Data mutations dependent upon strength setting of the algorithm - Likely more secure than any variant of AES
 
-<img src="https://i.imgur.com/9eEMOmw.png" alt="qengine">
+<img src="https://i.imgur.com/t3dd00I.png" alt="qengine">
 
 • Replaced legacy rolling‑XOR (‘polycXOR’): polcXOR now kept only for Explicit Legacy Calls and Internal State Modulation; never selected automatically.
 
