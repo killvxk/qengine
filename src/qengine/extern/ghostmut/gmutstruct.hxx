@@ -371,11 +371,7 @@ namespace ghostmut {
 
         inline std::recursive_mutex                                     g_ghostmut_interrupt_mtx;
 
-#ifndef GHOSTMUT_USE_DYNALLOC
         inline cmut<volatile bool>                                      g_ghostmut_mode = true;
-#else
-        inline cmut<volatile bool>                                      g_ghostmut_mode = false;
-#endif
 
         inline volatile thread_local ghostmut_insn_e                    g_ghostmut_instruction = ghostmut_insn_e::ERR;
 

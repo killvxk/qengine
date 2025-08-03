@@ -144,11 +144,7 @@ namespace ghostcall {
 
         inline std::recursive_mutex                                     g_ghostcall_interrupt_mtx;
 
-#ifndef GHOSTCALL_USE_DYNALLOC
         inline cmut<volatile bool>                                      g_ghostcall_mode = true;
-#else
-        inline cmut<volatile bool>                                      g_ghostcall_mode = false;
-#endif
 
         // Holds the Ghostcall Breakpoint Flag, Used to Distinguish Between Legitimate Breakpoints and Ghostcall Breakpoints
         // This is Set to True When a Ghostcall is Invoked, and Reset to False After the Call Completes
