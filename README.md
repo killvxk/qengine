@@ -73,7 +73,7 @@ a 128-bit streaming block-based algorithm w/ Notch and additional plaintext Data
 
 <img src="https://i.imgur.com/t3dd00I.png" alt="polyc128">
 
-• Replaced legacy rolling‑XOR (‘polycXOR’): polcXOR now kept only for Explicit Legacy Calls and Internal State Modulation; never selected automatically.
+• Replaced legacy rolling‑XOR (‘’): polcXOR now kept only for Explicit Legacy Calls and Internal State Modulation; never selected automatically.
 
 • Runtime dispatcher (`qcipher_provider::cipher`):
       CPU Feature AES‑NI present   	→ aes128_ctr
@@ -89,7 +89,7 @@ a 128-bit streaming block-based algorithm w/ Notch and additional plaintext Data
 
 • NIST STS-2.1.2 SP800-22 Rev1a Tests
 -----------------------------------------
-- Note: polycXOR in its basis element, being a rolling XOR / ADD / SUB Algorithm relying on control-flow confusion, Fails nearly all NIST STS-2.1.2 SP800-22 Rev1a tests for Actual Cryptographic Security
+- Note: The Legacy polycXOR Algorithm, in its basis element, being a rolling XOR / ADD / SUB Algorithm relying on control-flow confusion, Fails nearly all NIST STS-2.1.2 SP800-22 Rev1a tests for Actual Cryptographic Security
 
 • Given an Input Dataset of A Default Windows 11 Jpeg Logo Image File ::=
 <img src="https://i.imgur.com/5sfmX3N.jpeg" alt="qengine">
