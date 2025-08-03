@@ -10,15 +10,14 @@ qengine is a Header-Only, Highly Configurable, Compiler-Independent Binary Obfus
 
 *** NEW MACROS FOR ENGINE STATE CONTROL :=
 ```cpp
+
 // MUST Compile with -maes for Clang / Enable AES-NI intrinsics for your compiler, EVEN IF your CPU doesnt have these features (qengine automatically decides algorithm / instructions based on client architecture)
-
-#pragma region Preprocessor
-
 // Define this if you want qengine to Default to AES-128 CTR when Available on Client CPU Architecture (Huge Performance Gain, Albeit Less Secure than polyc128, which does still have SSE-Optimizations) will still fallback to polyc128 if AESNI intrinsics are //unavailable on the Client CPU
-
+//RECOMMENDED 
 #define QDEFAULT_INTRINSIC_AES
 
 /*
+	 RECOMMENDED 
 	 If Defined, qengine will Fallback to Software-Implemented CRC32C if Hardware Intrinsics are unavailable - This is Due to SSE Optimization on even the Software Implementation, making it more Performant than QHASH
 	 If Undefined, QHASH is the Fallback (less Performant than CRC32C, not Recommended)
 	 QHASH is Considered Essentially a Dated Legacy Algorithm, and Potentially Less Secure than CRC32C, and Far Less Performant at that in the Cases of CRC32C Intrinsics being Available on Client Hardware;
@@ -26,10 +25,10 @@ qengine is a Header-Only, Highly Configurable, Compiler-Independent Binary Obfus
 */
 #define QFALLBACK_SOFTWARE_CRC32C
 
-// If Defined, qengine will Always use Hardware Intrinsic CRC32C for it's Hash Digests over Software CRC32C and QHASH32/64
+// RECOMMENDED If Defined, qengine will Always use Hardware Intrinsic CRC32C for it's Hash Digests over Software CRC32C and QHASH32/64
 #define QDEFAULT_INTRINSIC_CRC32C
 
-// If Defined, qengine will use a Polymorphic Wrapper around Baser Primitive && Floating Point types (this is before Factoring Encryption / Hash Digest) ** Moderate Performance Hit
+// RECOMMENDED If Defined, qengine will use a Polymorphic Wrapper around Baser Primitive && Floating Point types (this is before Factoring Encryption / Hash Digest) ** Moderate Performance Hit
 #define QPRIMITIVE_TYPE_MUTATIONS
 
 // For Debugging Purposes w/ VEH-Function Obfuscator
