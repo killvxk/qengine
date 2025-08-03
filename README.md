@@ -2,6 +2,63 @@
   <img src="https://i.imgur.com/vKDluJm.png" alt="qengine">
 </p>
 
+*** NEW MACROS FOR ENGINE STATE CONTROL :=
+```cpp
+// MUST Compile with -maes for Clang / Enable AES-NI intrinsics for your compiler, EVEN IF your CPU doesnt have these features (qengine automatically decides algorithm / instructions based on client architecture)
+
+#pragma region Preprocessor
+
+// Define this if you want qengine to Default to AES-128 CTR when Available on Client CPU Architecture (Huge Performance Gain, Albeit Less Secure than polyc128, which does still have SSE-Optimizations) will still fallback to polyc128 if AESNI intrinsics are //unavailable on the Client CPU
+
+#define QDEFAULT_INTRINSIC_AES
+
+/*
+	 If Defined, qengine will Fallback to Software-Implemented CRC32C if Hardware Intrinsics are unavailable - This is Due to SSE Optimization on even the Software Implementation, making it more Performant than QHASH
+	 If Undefined, QHASH is the Fallback (less Performant than CRC32C, not Recommended)
+	 QHASH is Considered Essentially a Dated Legacy Algorithm, and Potentially Less Secure than CRC32C, and Far Less Performant at that in the Cases of CRC32C Intrinsics being Available on Client Hardware;
+	 Likewise, it is HIGHLY Recommended to define the Below Constants, Unless you have a Serious NEED for the Additional Control-Flow Confusion Provided by QHASH
+*/
+#define QFALLBACK_SOFTWARE_CRC32C
+
+// If Defined, qengine will Always use Hardware Intrinsic CRC32C for it's Hash Digests over Software CRC32C and QHASH32/64
+#define QDEFAULT_INTRINSIC_CRC32C
+
+// If Defined, qengine will use a Polymorphic Wrapper around Baser Primitive && Floating Point types (this is before Factoring Encryption / Hash Digest) ** Moderate Performance Hit
+#define QPRIMITIVE_TYPE_MUTATIONS
+
+// For Debugging Purposes w/ VEH-Function Obfuscator
+#define ENABLE_VEH_LOGS
+
+/*
+
+If you wish to Disable ALL Extended qtypes (AVX2, AVX512f) -> SSE2 is REQUIRED and ENFORCED by qengine. Nobody has a Computer without SSE2++ on x86/x86_64 Platforms Anyways
+#define QDISABLE_EXTENDED_TYPES
+
+If you wish to Disable AVX512f Extended Types
+#define QDISABLE_AVX512F_TYPES
+
+If you wish to Disable AVX2 Extended Types
+#define QDISABLE_AVX2_TYPES
+
+
+--IN GLOBAL SCOPE USE THE BELOW--
+// Define if you want ghostcall && ghostmut to use Compiler-Generated Interrupt Padding Segments to Indirect your Instructions
+GHOSTAPI_USE_INTERRUPT_PADDING
+// Define if you wish for gcall / gmut to use HeapAllocations for the Interrupts
+GHOSTAPI_USE_HEAP_ALLOC
+
+// Keystream only mode for polyc128
+#define QSET_POLYC128_MODE_LIGHT
+// Keystream mode + per-byte Offset Mutations
+#define QSET_POLYC128_MODE_MEDIUM
+// Keystream Mode + Offset Mutations + Circular Bitshift Mutations
+#define QSET_POLYC128_MODE_HIGH	
+// Keystream Mode + Offset Mutations + Circular Bitshift Mutations + Substitution Box Mutations
+#define QSET_POLYC128_MODE_VERYHIGH
+// Keystream Mode + Offset Mutations + Circular Bitshift Mutations + Inverse Mod 256 Mutations (Table-Based as SBOX is)
+#define QSET_POLYC128_MODE_EXTREME
+```
+
 # 🚀 **qengine 2.0**
 
 qengine is a Header-Only, Highly Configurable, Compiler-Independent Binary Obfuscation Toolkit designed for C++20 Applications for Microsoft Windows. It offers enhanced security and ease of integration, making your binaries significantly harder to reverse-engineer, particularly against tools such as IDA.
@@ -14,7 +71,7 @@ qengine is a Header-Only, Highly Configurable, Compiler-Independent Binary Obfus
 • Added brand‑new **polyc128** block/stream cipher (128‑bit block, 10‑round key schedule).
 a 128-bit streaming block-based algorithm w/ Notch and additional plaintext Data mutations dependent upon strength setting of the algorithm - Likely more secure than any variant of AES
 
-<img src="https://i.imgur.com/t3dd00I.png" alt="qengine">
+<img src="https://i.imgur.com/t3dd00I.png" alt="polyc128">
 
 • Replaced legacy rolling‑XOR (‘polycXOR’): polcXOR now kept only for Explicit Legacy Calls and Internal State Modulation; never selected automatically.
 
@@ -35,6 +92,7 @@ a 128-bit streaming block-based algorithm w/ Notch and additional plaintext Data
 - Note: XOR in its basis element, being a rolling XOR / ADD / SUB Algorithm relying on control-flow confusion, Fails nearly all NIST STS-2.1.2 SP800-22 Rev1a tests for Actual Cryptographic Security
 
 • Given an Input Dataset of A Default Windows 11 Jpeg Logo Image File ::=
+<img src="https://i.imgur.com/5sfmX3N.jpeg" alt="qengine">
 
 - XOR Encryption Scored a 3 / 15 in the test-suite
 
