@@ -89,14 +89,14 @@ a 128-bit streaming block-based algorithm w/ Notch and additional plaintext Data
 
 • NIST STS-2.1.2 SP800-22 Rev1a Tests
 -----------------------------------------
-- Note: XOR in its basis element, being a rolling XOR / ADD / SUB Algorithm relying on control-flow confusion, Fails nearly all NIST STS-2.1.2 SP800-22 Rev1a tests for Actual Cryptographic Security
+- Note: polycXOR in its basis element, being a rolling XOR / ADD / SUB Algorithm relying on control-flow confusion, Fails nearly all NIST STS-2.1.2 SP800-22 Rev1a tests for Actual Cryptographic Security
 
 • Given an Input Dataset of A Default Windows 11 Jpeg Logo Image File ::=
 <img src="https://i.imgur.com/5sfmX3N.jpeg" alt="qengine">
 
-- XOR Encryption Scored a 3 / 15 in the test-suite
+- polycXOR Encryption Scored a 3 / 15 in the test-suite
 
-- 128_streamonly Mode: Scored a 13 / 15 in the test-suite
+- polyc128_streamonly Mode: Scored a 13 / 15 in the test-suite
 
 - aes128-CTR Mode: Scored a 13 / 15 in the test-suite
 <img src="https://i.imgur.com/RCSnNdF.png" alt="qengine">
@@ -106,9 +106,9 @@ a 128-bit streaming block-based algorithm w/ Notch and additional plaintext Data
 
 • Given an Input Dataset of A Default Windows 11 Jpeg Logo Image File ::=
 
-- XOR: 20.63% Bits-flipped in the test
+- polycXOR: 20.63% Bits-flipped in the test
 
-- 128_extreme Mode:  50.26% Bits-flipped in the test (2.5x Improvement Over XOR)
+- polyc128_extreme Mode:  50.26% Bits-flipped in the test (2.5x Improvement Over XOR)
 
 - aes128-CTR Mode: 50.04% Bits-flipped in the test
 
