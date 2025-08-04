@@ -18,7 +18,7 @@ qengine is a Header-Only, Highly Configurable, Compiler-Independent Binary Obfus
 
 // Define this if you want qengine to use VirtualProtect from the Compiled Import Table of your Binary rather than obfuscating it's Import at Runtime (there aren't even plaintext Strings in the Binary Indicating it's Import btw) : this may be useful if combating
 // certain Protection Systems which specifically scan for this
-#ifndef QUSE_ITABLE_VIRTUALPROTECT
+#define QUSE_ITABLE_VIRTUALPROTECT
 
 /*
 	 RECOMMENDED 
