@@ -16,6 +16,10 @@ qengine is a Header-Only, Highly Configurable, Compiler-Independent Binary Obfus
 //RECOMMENDED 
 #define QDEFAULT_INTRINSIC_AES
 
+// Define this if you want qengine to use VirtualProtect from the Compiled Import Table of your Binary rather than obfuscating it's Import at Runtime (there aren't even plaintext Strings in the Binary Indicating it's Import btw) : this may be useful if combating
+// certain Protection Systems which specifically scan for this
+#ifndef QUSE_ITABLE_VIRTUALPROTECT
+
 /*
 	 RECOMMENDED 
 	 If Defined, qengine will Fallback to Software-Implemented CRC32C if Hardware Intrinsics are unavailable - This is Due to SSE Optimization on even the Software Implementation, making it more Performant than QHASH
