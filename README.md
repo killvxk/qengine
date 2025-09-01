@@ -1288,23 +1288,11 @@ If you think of something you would like to see in qengine, or would like to con
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-This is free software and i am not trying to charge you for it, however If you do wish to support the project or leave a thanks by donating, below are links through which you may donate if you so choose (And thank you very much if you do!) -
+This is free software and i am not trying to charge you for it, but if any of you Decide to offer anything of Value -
 
-- [CashApp](https://cash.app/$0xH4X0R)
+Cashapp: $0xHADES
 
-- [Paypal](https://paypal.me/CoDTroll?country.x=US&locale.x=en_US)
-
-- Bitcoin -
-bc1qx9xsw4hvvqel29au5xy3vqwh48u0yhvsxfsd33
-
-- Litecoin -
-ltc1q0jqcsf83xjqx5x9cj2wag06hpwxc6sv3wczu6v
-
-- Ethereum -
-0x7457875998B35A032c789a10177Bb463fF2F1902
-
-- Dogecoin -
-D5NTFpffw9erwdEbnz7rymBhkgrRzfEigs
+btc: bc1qjcvt9nd46gzdty3d2s00955drqpc0dnp7kytypor
 
 </details>
 
