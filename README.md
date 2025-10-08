@@ -139,7 +139,7 @@ This may be Viewed as an Advanced Level of Indirection, and thus Obfuscation, or
 
 ### 📂 **New Integrated Libraries**
 - **[accelmem](https://github.com/Chemiculs/accelmem)**: High-performance memory operations, encryption, CRC32 checksums.
-- **[cmut](https://github.com/Chemiculs/cmut)**: Thread-safe primitive mutation and protection.
+- **[cmut](https://github.com/Chemiculs/cmut)**: Thread-safe primitive Type mutation.
 
 ### 🔗 **New External Components**
 - **pdfn**:     Reliable && Precise Runtime Function Encryption
