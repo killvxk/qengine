@@ -112,7 +112,7 @@ a 128-bit streaming block-based algorithm w/ Notch and additional plaintext Data
 
 - polycXOR: 20.63% Bits-flipped in the test
 
-- polyc128_extreme Mode:  50.26% Bits-flipped in the test (2.5x Improvement Over XOR)
+- polyc128_extreme Mode:  50.26% Bits-flipped in the test (2.5x Improvement Over polycXOR)
 
 - aes128-CTR Mode: 50.04% Bits-flipped in the test
 
@@ -323,7 +323,7 @@ int main(){
 
 ```
 
-This code, presuming the compiler manages to comply with qengine's inlining reuests, eactually expands to the following:
+This code, presuming the compiler manages to comply with qengine's inlining reuests, actually expands to the following:
 
 ```cpp
 #include <iostream>
@@ -398,9 +398,9 @@ Each get() and set() accessor call is inlined, and each math operation or manipu
 This is the old Algorithm used to Secure qengine Types. it is a relatively Basic and Weak XOR Algorithm with Added Niche's such as Rolling Addition / Subtraction, with the benefit of great Control-Flow Confusion from the Inlining,
 However it is Dated, Deprecated, and not in any way to be Considered a Cryptographically Secure Algorithm at this point in time, and it likely never was.
 
-It is only used not for Explicit Legacy Calls, Securing low-risk Global Data for a Handful of Classes in qengine Now.
+It is only used now for Explicit Legacy Calls, Securing low-risk Global Data for a Handful of Classes in qengine Now.
 
-Below is a diagram of how the polyc algorithm currently works, please bear with my bad MSPAINT artwork:
+Below is a diagram of how the polycXOR algorithm currently works, please bear with my bad MSPAINT artwork:
 
 ![polyc diagram](img/polycgraph.png)
 
@@ -413,11 +413,9 @@ Below is a diagram of how the polyc algorithm currently works, please bear with 
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-### ** NOTE: This setup option only works out of the box targetting the MSVC v143 compiler WITH the "Runtime Library" Option set to the default " Multi-threaded DLL (/MD) " build target.
+### ** NOTE: Apparently i forgot to add the new asmjit libraries to the repository when i released qengine 2.0 - Apologies, they are now in the extern folder (32-bit asmjit needs following unzip: ) 
 
-if you wish to target another compiler or Runtime Library version, you MUST first compile [ASMJIT](https://github.com/asmjit/asmjit) and [Capstone](https://github.com/capstone-engine/capstone) from their source(s), with the according compiler settings from your target project applied and then replace the library files output with the according target output filename(s) in the <root_directory>/qengine/engine/extern/ folder :
-
-UPDATE: If you are using llvm / clang, there is an alternative llvm / clang compatible build of the static libraries located in the  /src/qengine/extern/clang_alternate_libs, set this as your library directory with llvm / clang projects.
+* IF Targeting 32-bit build, You will need to Navigate to the <root_directory>/qengine/extern/ Folder, and un-zip the asmjit32.7z file, which simply expands to a 32-bit library file for asmjit as it is too Large to upload to Github without 7z compression.
 
 ```cpp
 
@@ -437,13 +435,13 @@ capstone64.lib	//	64-bit release static library build for capstone
 
 IF you are simply using MSVC Compiler v143 or higher, you will NOT need to worry about the above step.
 
-* Download the repository as a zip file, and extract the /src/qengine folder to your project's main / root directory
+* Download the repository as a zip file, and extract the /src/qengine folder to your project's main / root directory, OR add an additional include directory pointing to qengine's root location on your disk.
   
-* goto <root_directory>/qengine/extern/ and unzip "asmjit_libs.zip"  - make sure all the files within are extracted to this directory
+* Include the qengine header file contained in <root_directory>/qengine/engine/ to the Target source / header in your own project
   
-* Include the qengine header file contained in <root_directory>/qengine/engine/
-  
-* Add <root_directory>/qengine/extern/ to additional library directories (for linking)
+* Add <root_directory>/qengine/extern/ to additional library directories (for linking) to your project
+
+* Build Away!
 
 </details>
 
@@ -1288,7 +1286,7 @@ If you think of something you would like to see in qengine, or would like to con
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-This is free software and i am not trying to charge you for it, but if any of you Decide to offer anything of Value -
+This is free software, and i am not charging anything for it - if you do choose to donate here is where you may: 
 
 Cashapp: $0xHADES
 
@@ -1303,7 +1301,6 @@ I don't have much time on my hands at the moment. I am passionate about this pro
 Feel free to submit any bugs with the library you find, and I encourage you to contribute to the project if you enjoy it or find any use for it yourself.
 
 # If you have any Questions or Inquiries regarding qengine, feel free to contact me on Discord:
-
 
 <p align="center" style="font-size: 20px; font-weight: bold;">
                                          		0xh4x0r
